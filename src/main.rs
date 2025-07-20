@@ -69,7 +69,7 @@ fn main() -> Result<()> {
                             app.playback_start = Some(Instant::now());
 
                             log::debug!(
-                                "Autoplay switched to: {} – {}",
+                                "Autoplay switched to: {} - {}",
                                 next_track.album_artist,
                                 next_track.title
                             );
@@ -150,16 +150,27 @@ fn main() -> Result<()> {
 
                             if let Some(track) = selected {
                                 let player = Arc::clone(&app.player);
+                                let mut should_unpause = false;
 
                                 // Stop current playback and play selected track
                                 {
                                     let mut plyr = player.lock().unwrap();
+                                    let was_paused = plyr.paused_flag.load(Ordering::SeqCst);
+
                                     plyr.stop();
                                     plyr.play(&track.path);
+
+                                    if was_paused {
+                                        should_unpause = true;
+                                    }
 
                                     app.current_track = Some(track.clone());
                                     app.playback_duration = track.duration.unwrap_or(0);
                                     app.playback_start = Some(Instant::now());
+                                }
+
+                                if should_unpause {
+                                    app.toggle_pause();
                                 }
                             }
                         }
