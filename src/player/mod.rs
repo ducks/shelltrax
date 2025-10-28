@@ -26,7 +26,6 @@ use symphonia::core::{
 
 use symphonia::default::{get_codecs, get_probe};
 
-use log;
 
 use std::collections::VecDeque;
 

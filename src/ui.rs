@@ -6,7 +6,6 @@ use ratatui::prelude::*;
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style},
-    text::{Span},
     widgets::{Block, Borders, Gauge, Paragraph},
     Frame,
 };

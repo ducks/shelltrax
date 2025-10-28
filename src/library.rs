@@ -10,9 +10,8 @@ use id3::Tag as Id3Tag;
 use symphonia::core::{
     formats::FormatOptions,
     io::MediaSourceStream,
-    meta::{MetadataOptions, MetadataRevision, StandardTagKey},
+    meta::MetadataOptions,
     probe::Hint,
-    probe::ProbeResult,
 };
 use symphonia::default::get_probe;
 
@@ -128,12 +127,11 @@ impl LibraryState {
     }
 
     pub fn toggle_expanded(&mut self) {
-        if let Some(LibrarySelection::Artist { artist_index }) = self.selection {
-            if let Some(artist) = self.artists.get_mut(artist_index) {
+        if let Some(LibrarySelection::Artist { artist_index }) = self.selection
+            && let Some(artist) = self.artists.get_mut(artist_index) {
                 artist.expanded = !artist.expanded;
                 self.rebuild_visible_rows();
             }
-        }
     }
 
     pub fn selected_artist(&self) -> Option<&ArtistNode> {
@@ -154,7 +152,7 @@ impl LibraryState {
         }
     }
 
-    fn build_visible_rows<'a>(artists: &'a [ArtistNode]) -> Vec<VisibleRow> {
+    fn build_visible_rows(artists: &[ArtistNode]) -> Vec<VisibleRow> {
         let mut rows = Vec::new();
         for (artist_index, artist) in artists.iter().enumerate() {
             rows.push(VisibleRow::Artist { artist_index });
@@ -170,7 +168,7 @@ impl LibraryState {
         rows
     }
 
-    fn selected_index<'a>(rows: &'a [VisibleRow], selection: Option<LibrarySelection>) -> usize {
+    fn selected_index(rows: &[VisibleRow], selection: Option<LibrarySelection>) -> usize {
         rows.iter()
             .position(|row| match (row, selection) {
                 (
@@ -318,7 +316,7 @@ impl LibraryState {
 
     pub fn select_track_by_path(&mut self, path: &Path) {
         let tracks = self.visible_tracks();
-        if let Some(i) = tracks.iter().position(|t| &t.path == path) {
+        if let Some(i) = tracks.iter().position(|t| t.path == path) {
             self.track_index = i;
             self.state.select(Some(i));
         }
@@ -421,7 +419,7 @@ fn extract_id3_tags(path: &Path) -> (String, String, String, Option<u32>, String
         .unwrap_or("Unknown Album Artist")
         .to_string();
 
-    let track_number = tag.and_then(|t| t.track()).map(|n| n as u32);
+    let track_number = tag.and_then(|t| t.track()).map(|n| n);
 
 
 
@@ -492,13 +490,11 @@ fn extract_symphonia_tags(path: &Path) -> (String, String, String, Option<u32>, 
 
     let mut duration = None;
 
-    if let Some(track) = probed.format.default_track() {
-        if let Some(tb) = track.codec_params.time_base {
-            if let Some(n_frames) = track.codec_params.n_frames {
-                duration = Some((n_frames as u64 * tb.numer as u64) / tb.denom as u64);
+    if let Some(track) = probed.format.default_track()
+        && let Some(tb) = track.codec_params.time_base
+            && let Some(n_frames) = track.codec_params.n_frames {
+                duration = Some((n_frames * tb.numer as u64) / tb.denom as u64);
             }
-        }
-    }
 
     (title, artist, album, track_number, album_artist, duration)
 }

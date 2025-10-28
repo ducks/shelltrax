@@ -50,7 +50,7 @@ impl App {
         Self {
             screen: AppScreen::Browser,
             browser: BrowserState::new(),
-            library: library,
+            library,
             player: Arc::new(Mutex::new(Player::new())),
             play_queue: Vec::new(),
             queue_index: 0,
