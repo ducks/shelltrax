@@ -47,6 +47,7 @@ impl App {
         library.lock().unwrap().artists = artists;
         library.lock().unwrap().rebuild_visible_rows(); // Make sure UI stays in sync
 
+        #[allow(clippy::arc_with_non_send_sync)]
         Self {
             screen: AppScreen::Browser,
             browser: BrowserState::new(),
@@ -121,28 +122,6 @@ impl App {
         }
     }
 
-    pub fn set_play_queue(&mut self, tracks: Vec<PathBuf>, start_index: usize) {
-        self.play_queue = tracks;
-        self.queue_index = start_index;
-    }
-
-    pub fn pause(&mut self) {
-        let mut player = self.player.lock().unwrap();
-        player.set_paused(true);
-        self.paused_at = Some(Instant::now());
-    }
-
-    pub fn resume(&mut self) {
-        let mut player = self.player.lock().unwrap();
-        player.set_paused(false);
-
-        if let Some(paused_at) = self.paused_at {
-            self.paused_duration += paused_at.elapsed();
-        }
-
-        self.paused_at = None;
-    }
-
     pub fn toggle_pause(&mut self) {
         let mut player = self.player.lock().unwrap();
 
@@ -162,15 +141,7 @@ impl App {
         self.playback_start = Some(std::time::Instant::now());
         self.paused_duration = std::time::Duration::ZERO;
         self.paused_at = None;
-        // optional: if you rely on app.playback_duration elsewhere
         self.playback_duration = track.duration.unwrap_or(0);
-    }
-
-    /// Fallback: reset timers when we don't have a concrete track object yet.
-    pub fn reset_playback_timers(&mut self) {
-        self.playback_start = Some(Instant::now());
-        self.paused_duration = Duration::ZERO;
-        self.paused_at = None;
     }
 }
 
@@ -209,28 +180,30 @@ mod tests {
     }
 
     #[test]
-    fn test_pause_sets_paused_at() {
+    fn test_toggle_pause_sets_paused_at() {
         let mut app = App::new();
 
         assert!(app.paused_at.is_none());
 
-        app.pause();
+        app.toggle_pause();
 
         assert!(app.paused_at.is_some());
         assert!(app.player_mut().is_paused);
     }
 
     #[test]
-    fn test_resume_accumulates_paused_duration() {
+    fn test_toggle_pause_accumulates_paused_duration() {
         let mut app = App::new();
 
         let start = Instant::now();
         app.paused_at = Some(start);
         app.paused_duration = Duration::from_secs(5);
 
+        app.toggle_pause();
+
         std::thread::sleep(Duration::from_millis(100));
 
-        app.resume();
+        app.toggle_pause();
 
         assert!(app.paused_at.is_none());
         assert!(app.paused_duration > Duration::from_secs(5));

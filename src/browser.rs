@@ -50,13 +50,6 @@ impl BrowserState {
     pub fn move_down(&mut self) {
         self.list.move_down();
     }
-
-    pub fn selected_path(&self) -> Option<&PathBuf> {
-        match self.list.selected_item()? {
-            BrowserItem::Entry(path) => Some(path),
-            _ => None,
-        }
-    }
 }
 
 fn read_dir_items(dir: &PathBuf) -> Vec<BrowserItem> {

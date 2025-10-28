@@ -2,7 +2,6 @@ use crate::{
     app::{App, AppScreen},
     screens,
 };
-use ratatui::prelude::*;
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style},
@@ -23,17 +22,9 @@ pub fn draw_ui(frame: &mut Frame, app: &mut App) {
     match app.screen {
         AppScreen::Library => screens::library::draw(frame, app, layout[0]),
         AppScreen::Browser => screens::browser::draw(frame, app, layout[0]),
-        _ => println!("ok"),
     }
 
     render_footer(frame, app, layout[1]);
-}
-
-pub fn highlight_style(screen: AppScreen) -> Style {
-    match screen {
-        AppScreen::Library => Style::default().bg(Color::Green).fg(Color::Black),
-        AppScreen::Browser => Style::default().bg(Color::Blue).fg(Color::White),
-    }
 }
 
 pub fn render_footer(

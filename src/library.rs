@@ -43,7 +43,6 @@ pub struct LibraryState {
     pub artists: Vec<ArtistNode>,
     pub selection: Option<LibrarySelection>,
     pub state: ListState,
-    pub album_index: Option<usize>,
     pub focus: LibraryFocus,
     pub track_index: usize,
     pub visible_rows: Vec<VisibleRow>,
@@ -59,7 +58,6 @@ impl LibraryState {
             artists: Vec::new(),
             selection: Some(LibrarySelection::Artist { artist_index: 0 }),
             state,
-            album_index: Some(0),
             focus: LibraryFocus::Left,
             track_index: 0,
             visible_rows: Vec::new(),
@@ -134,30 +132,12 @@ impl LibraryState {
             }
     }
 
-    pub fn selected_artist(&self) -> Option<&ArtistNode> {
-        match self.selection {
-            Some(LibrarySelection::Artist { artist_index }) => self.artists.get(artist_index),
-            Some(LibrarySelection::Album { artist_index, .. }) => self.artists.get(artist_index),
-            None => None,
-        }
-    }
-
-    pub fn selected_album(&self) -> Option<&AlbumNode> {
-        match self.selection {
-            Some(LibrarySelection::Album {
-                artist_index,
-                album_index,
-            }) => self.artists.get(artist_index)?.albums.get(album_index),
-            _ => None,
-        }
-    }
-
     fn build_visible_rows(artists: &[ArtistNode]) -> Vec<VisibleRow> {
         let mut rows = Vec::new();
         for (artist_index, artist) in artists.iter().enumerate() {
             rows.push(VisibleRow::Artist { artist_index });
             if artist.expanded {
-                for (album_index, album) in artist.albums.iter().enumerate() {
+                for (album_index, _album) in artist.albums.iter().enumerate() {
                     rows.push(VisibleRow::Album {
                         artist_index,
                         album_index,
@@ -278,7 +258,7 @@ impl LibraryState {
         }
     }
 
-    pub fn right_pane_items(&self) -> (Vec<ListItem>, Vec<usize>) {
+    pub fn right_pane_items(&self) -> (Vec<ListItem<'_>>, Vec<usize>) {
         let tracks = self.visible_tracks();
         let mut items = Vec::new();
         let mut playable_indices = Vec::new();
@@ -419,7 +399,7 @@ fn extract_id3_tags(path: &Path) -> (String, String, String, Option<u32>, String
         .unwrap_or("Unknown Album Artist")
         .to_string();
 
-    let track_number = tag.and_then(|t| t.track()).map(|n| n);
+    let track_number = tag.and_then(|t| t.track());
 
 
 
