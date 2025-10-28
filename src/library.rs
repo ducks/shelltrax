@@ -508,3 +508,115 @@ pub enum LibraryFocus {
     Left,
     Right,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_test_track(
+        artist: &str,
+        album: &str,
+        title: &str,
+        track_num: u32,
+    ) -> LibraryTrack {
+        LibraryTrack {
+            path: PathBuf::from(format!("/test/{}/{}/{}.mp3", artist, album, title)),
+            title: title.to_string(),
+            artist: artist.to_string(),
+            album: album.to_string(),
+            track_number: Some(track_num),
+            album_artist: artist.to_string(),
+            duration: Some(180),
+        }
+    }
+
+    #[test]
+    fn test_add_tracks_creates_structure() {
+        let mut lib = LibraryState::new();
+
+        let tracks = vec![
+            create_test_track("Artist A", "Album 1", "Track 1", 1),
+            create_test_track("Artist A", "Album 1", "Track 2", 2),
+            create_test_track("Artist B", "Album 2", "Track 3", 1),
+        ];
+
+        lib.add_tracks(tracks);
+
+        assert_eq!(lib.artists.len(), 2);
+        assert_eq!(lib.artists[0].name, "Artist A");
+        assert_eq!(lib.artists[0].albums.len(), 1);
+        assert_eq!(lib.artists[0].albums[0].tracks.len(), 2);
+        assert_eq!(lib.artists[1].name, "Artist B");
+    }
+
+    #[test]
+    fn test_track_by_path_finds_track() {
+        let mut lib = LibraryState::new();
+
+        let track = create_test_track("Artist", "Album", "Title", 1);
+        let path = track.path.clone();
+
+        lib.add_tracks(vec![track]);
+
+        let found = lib.track_by_path(&path);
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().title, "Title");
+    }
+
+    #[test]
+    fn test_track_by_path_returns_none_for_missing() {
+        let lib = LibraryState::new();
+
+        let result = lib.track_by_path(Path::new("/nonexistent/path.mp3"));
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_toggle_expanded() {
+        let mut lib = LibraryState::new();
+
+        lib.add_tracks(vec![create_test_track("Artist", "Album", "Track", 1)]);
+
+        assert!(!lib.artists[0].expanded);
+
+        lib.toggle_expanded();
+
+        assert!(lib.artists[0].expanded);
+    }
+
+    #[test]
+    fn test_visible_tracks_for_artist() {
+        let mut lib = LibraryState::new();
+
+        lib.add_tracks(vec![
+            create_test_track("Artist", "Album 1", "Track 1", 1),
+            create_test_track("Artist", "Album 2", "Track 2", 1),
+        ]);
+
+        lib.selection = Some(LibrarySelection::Artist { artist_index: 0 });
+        let tracks = lib.visible_tracks();
+
+        assert_eq!(tracks.len(), 2);
+    }
+
+    #[test]
+    fn test_visible_tracks_for_album() {
+        let mut lib = LibraryState::new();
+
+        lib.add_tracks(vec![
+            create_test_track("Artist", "Album 1", "Track 1", 1),
+            create_test_track("Artist", "Album 1", "Track 2", 2),
+            create_test_track("Artist", "Album 2", "Track 3", 1),
+        ]);
+
+        lib.selection = Some(LibrarySelection::Album {
+            artist_index: 0,
+            album_index: 0,
+        });
+        let tracks = lib.visible_tracks();
+
+        assert_eq!(tracks.len(), 2);
+        assert_eq!(tracks[0].title, "Track 1");
+        assert_eq!(tracks[1].title, "Track 2");
+    }
+}
