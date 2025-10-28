@@ -86,36 +86,40 @@ impl App {
     }
 
     pub fn play_next_track(&mut self) {
-        if self.queue_index + 1 < self.play_queue.len() {
-            self.queue_index += 1;
-            let next_path = self.play_queue[self.queue_index].clone();
-
-           // Scope the library borrow once
-            let next_track = {
-                let mut lib = self.library_mut();
-                lib.select_track_by_path(&next_path);
-                lib.track_by_path(&next_path).cloned()
-            };
-
-            if let Some(track) = next_track {
-                self.current_track = Some(track);
-                self.playback_start = Some(Instant::now());
-            } else {
-                log::warn!("Could not find LibraryTrack for path: {:?}", next_path);
-                self.current_track = None;
-                self.playback_start = None;
-            }
-
-            self.player_mut().play(&next_path);
-        } else {
+        if self.queue_index + 1 >= self.play_queue.len() {
             log::debug!("Reached end of queue");
             self.queue_index = 0;
             self.play_queue.clear();
             self.current_track = None;
             self.playback_start = None;
+            return;
+        }
+
+        self.queue_index += 1;
+        let next_path = self.play_queue[self.queue_index].clone();
+
+        {
+            let mut lib = self.library.lock().unwrap();
+            lib.select_track_by_path(&next_path);
+        }
+
+        if let Some(track) = {
+            let lib = self.library.lock().unwrap();
+            lib.track_by_path(&next_path).cloned()
+        } {
+            self.begin_playback(&track);
+        } else {
+            log::warn!("Could not find LibraryTrack for: {:?}", next_path);
+            self.playback_start = Some(Instant::now());
+            self.paused_duration = Duration::ZERO;
+            self.paused_at = None;
+        }
+
+        {
+            let mut player = self.player.lock().unwrap();
+            player.play(&next_path);
         }
     }
-
 
     pub fn set_play_queue(&mut self, tracks: Vec<PathBuf>, start_index: usize) {
         self.play_queue = tracks;
@@ -140,15 +144,32 @@ impl App {
     }
 
     pub fn toggle_pause(&mut self) {
-        let is_paused = {
-            let player = self.player.lock().unwrap();
-            player.is_paused
-        };
+        let mut player = self.player.lock().unwrap();
 
-        if is_paused {
-            self.resume();
+        if player.is_paused {
+            player.set_paused(false);
+            if let Some(at) = self.paused_at.take() {
+                self.paused_duration += at.elapsed();
+            }
         } else {
-            self.pause();
+            player.set_paused(true);
+            self.paused_at = Some(Instant::now());
         }
+    }
+
+    pub fn begin_playback(&mut self, track: &LibraryTrack) {
+        self.current_track = Some(track.clone());
+        self.playback_start = Some(std::time::Instant::now());
+        self.paused_duration = std::time::Duration::ZERO;
+        self.paused_at = None;
+        // optional: if you rely on app.playback_duration elsewhere
+        self.playback_duration = track.duration.unwrap_or(0);
+    }
+
+    /// Fallback: reset timers when we don't have a concrete track object yet.
+    pub fn reset_playback_timers(&mut self) {
+        self.playback_start = Some(Instant::now());
+        self.paused_duration = Duration::ZERO;
+        self.paused_at = None;
     }
 }
