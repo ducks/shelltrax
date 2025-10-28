@@ -325,7 +325,14 @@ impl LibraryState {
     }
 
     pub fn track_by_path(&self, path: &Path) -> Option<&LibraryTrack> {
-        self.tracks.iter().find(|t| t.path == path)
+        for artist in &self.artists {
+            for album in &artist.albums {
+                if let Some(track) = album.tracks.iter().find(|t| t.path == path) {
+                    return Some(track);
+                }
+            }
+        }
+        None
     }
 }
 

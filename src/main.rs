@@ -55,28 +55,37 @@ fn main() -> Result<()> {
             .autoplay_trigger
             .swap(false, Ordering::SeqCst)
         {
-            let mut plyr = app.player.lock().unwrap();
-            let mut lib = app.library.lock().unwrap();
+            let next_track = {
+                let mut plyr = app.player.lock().unwrap();
+                let mut lib = app.library.lock().unwrap();
 
-            if let Some(current_path) = &plyr.current_path {
-                if app.autoplay_enabled {
-                    if let Some(next_path) = lib.next_track_path(current_path) {
-                        lib.select_track_by_path(&next_path);
-                        plyr.play(&next_path);
+                let mut result = None;
 
-                        if let Some(next_track) = lib.track_by_path(&next_path) {
-                            app.current_track = Some(next_track.clone());
-                            app.playback_start = Some(Instant::now());
+                if let Some(current_path) = &plyr.current_path {
+                    if app.autoplay_enabled {
+                        if let Some(next_path) = lib.next_track_path(current_path) {
+                            lib.select_track_by_path(&next_path);
+                            plyr.play(&next_path);
 
-                            log::debug!(
-                                "Autoplay switched to: {} - {}",
-                                next_track.album_artist,
-                                next_track.title
-                            );
-                            log::debug!("playback_start: {:?}", app.playback_start);
+                            if let Some(next_track) = lib.track_by_path(&next_path) {
+                                result = Some(next_track.clone());
+                            }
                         }
                     }
                 }
+
+                result
+            };
+
+            if let Some(track) = next_track {
+                app.begin_playback(&track);
+
+                log::debug!(
+                    "Autoplay switched to: {} - {}",
+                    track.album_artist,
+                    track.title
+                );
+                log::debug!("playback_start: {:?}", app.playback_start);
             }
         }
 
@@ -163,11 +172,9 @@ fn main() -> Result<()> {
                                     if was_paused {
                                         should_unpause = true;
                                     }
-
-                                    app.current_track = Some(track.clone());
-                                    app.playback_duration = track.duration.unwrap_or(0);
-                                    app.playback_start = Some(Instant::now());
                                 }
+
+                                app.begin_playback(&track);
 
                                 if should_unpause {
                                     app.toggle_pause();

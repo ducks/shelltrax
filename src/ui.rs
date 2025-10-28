@@ -3,19 +3,21 @@ use crate::{
     screens,
 };
 use ratatui::prelude::*;
-use ratatui::widgets::{
-    Gauge,
-    Paragraph,
+use ratatui::{
+    layout::{Constraint, Direction, Layout, Rect},
+    style::{Color, Style},
+    text::{Span},
+    widgets::{Block, Borders, Gauge, Paragraph},
+    Frame,
 };
-
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 pub fn draw_ui(frame: &mut Frame, app: &mut App) {
     let layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Min(1),    // Main screen
-            Constraint::Length(2), // Footer
+            Constraint::Length(4), // Footer
         ])
         .split(frame.area());
 
@@ -35,69 +37,66 @@ pub fn highlight_style(screen: AppScreen) -> Style {
     }
 }
 
-fn render_footer(f: &mut Frame, app: &App, area: Rect) {
-    if let Some(track) = &app.current_track {
-        log::debug!(
-            "Rendering footer: {} – {}, elapsed: {:?}",
-            track.album_artist,
-            track.title,
-            app.playback_start.map(|t| t.elapsed())
-        );
+pub fn render_footer(
+    f: &mut Frame,
+    app: &App,
+    area: Rect,
+) {
+    let block = Block::default().borders(Borders::TOP);
+    let inner = block.inner(area);
+    f.render_widget(block, area);
 
-        let elapsed = app.playback_start.map(|start| {
-            let now = if let Some(paused_at) = app.paused_at {
-                paused_at // freeze at time of pause
-            } else {
-                Instant::now()
-            };
+    let Some(start) = app.playback_start else { return };
 
-            now.duration_since(start)
-                .saturating_sub(app.paused_duration)
-                .as_secs()
-        }).unwrap_or(0);
-
-        let dur = track.duration.unwrap_or(0);
-        let pos = elapsed.min(dur);
-
-        let percent = if dur > 0 {
-            pos as f64 / dur as f64
-        } else {
-            0.0
-        };
-
-        let info_line = Paragraph::new(format!(
-            "▶ {} – {} - {}  {:02}:{:02} / {:02}:{:02}",
-            track.album_artist,
-            track.album,
-            track.title,
-            pos / 60, pos % 60,
-            dur / 60, dur % 60,
-        ))
-        .style(Style::default().fg(Color::Gray));
-
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(1),
-                Constraint::Length(1),
-            ])
-            .split(area);
-
-        let info_chunk = chunks[0];
-        let gauge_chunk = chunks[1];
-
-        f.render_widget(info_line, info_chunk);
-
-        let gauge = Gauge::default()
-            .gauge_style(Style::default().fg(Color::LightGreen))
-            .ratio(percent);
-
-        f.render_widget(gauge, gauge_chunk);
+    let now = Instant::now();
+    let elapsed = if let Some(paused_at) = app.paused_at {
+        paused_at.duration_since(start)
     } else {
-        let empty = Paragraph::new("⏹ Nothing playing")
-            .style(Style::default().fg(Color::DarkGray));
+        now.duration_since(start)
+    };
 
-        f.render_widget(empty, area);
+    let adjusted = elapsed.saturating_sub(app.paused_duration);
+    let total = Duration::from_secs(app.playback_duration);
+
+    let ratio = if total.as_secs_f64() > 0.0 {
+        adjusted.as_secs_f64() / total.as_secs_f64()
+    } else {
+        0.0
+    };
+
+    let layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Length(1),
+        ])
+        .split(inner);
+
+    let gauge = Gauge::default()
+        .gauge_style(Style::default().fg(Color::Green))
+        .ratio(ratio.min(1.0));
+    f.render_widget(gauge, layout[0]);
+
+    let elapsed_secs = adjusted.as_secs();
+    let total_secs = total.as_secs();
+    let time_text = format!(
+        "{:02}:{:02} / {:02}:{:02}",
+        elapsed_secs / 60,
+        elapsed_secs % 60,
+        total_secs / 60,
+        total_secs % 60
+    );
+
+    let time_display = Paragraph::new(time_text);
+    f.render_widget(time_display, layout[1]);
+
+    if let Some(track) = &app.current_track {
+        let track_info = format!(
+            "{} - {} - {}",
+            track.artist, track.title, track.album
+        );
+        let track_display = Paragraph::new(track_info);
+        f.render_widget(track_display, layout[2]);
     }
 }
-
