@@ -1,6 +1,3 @@
-mod decoder;
-mod output;
-
 use crate::player::thread::JoinHandle;
 
 use std::{
@@ -26,7 +23,6 @@ use symphonia::core::{
 
 use symphonia::default::{get_codecs, get_probe};
 
-use log;
 
 use std::collections::VecDeque;
 
@@ -102,7 +98,6 @@ impl Player {
             buffer_size: cpal::BufferSize::Default,
         };
         let buffer = Arc::new(Mutex::new(Vec::<f32>::new()));
-        let buffer_clone = Arc::clone(&buffer);
 
         let sample_buf = Arc::new(Mutex::new(VecDeque::<f32>::new()));
         let sample_buf_clone = Arc::clone(&sample_buf);
@@ -206,7 +201,7 @@ impl Player {
                         for frame in 0..buf.frames() {
                             for ch in 0..buf.spec().channels.count() {
                                 let val = buf.chan(ch)[frame];
-                                let sample_f32 = val.into_i32() as f32 / (1 << 23) as f32;
+                                let sample_f32 = val.inner() as f32 / (1 << 23) as f32;
                                 samples.push(sample_f32);
                             }
                         }
@@ -266,13 +261,5 @@ impl Player {
     pub fn set_paused(&mut self, paused: bool) {
         self.is_paused = paused;
         self.paused_flag.store(paused, Ordering::SeqCst);
-    }
-
-    pub fn pause(&mut self) {
-        self.set_paused(true);
-    }
-
-    pub fn resume(&mut self) {
-        self.set_paused(false);
     }
 }

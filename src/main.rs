@@ -9,7 +9,6 @@ mod ui;
 
 use app::{App, AppScreen};
 
-use std::time::Instant;
 
 use crate::browser::BrowserItem;
 
@@ -61,9 +60,9 @@ fn main() -> Result<()> {
 
                 let mut result = None;
 
-                if let Some(current_path) = &plyr.current_path {
-                    if app.autoplay_enabled {
-                        if let Some(next_path) = lib.next_track_path(current_path) {
+                if let Some(current_path) = &plyr.current_path
+                    && app.autoplay_enabled
+                        && let Some(next_path) = lib.next_track_path(current_path) {
                             lib.select_track_by_path(&next_path);
                             plyr.play(&next_path);
 
@@ -71,8 +70,6 @@ fn main() -> Result<()> {
                                 result = Some(next_track.clone());
                             }
                         }
-                    }
-                }
 
                 result
             };
@@ -92,9 +89,9 @@ fn main() -> Result<()> {
         log::debug!("Drawing track: {:?}", app.current_track.as_ref().map(|t| &t.title));
         terminal.draw(|f| ui::draw_ui(f, &mut app))?;
 
-        if event::poll(std::time::Duration::from_millis(200))? {
+        if event::poll(std::time::Duration::from_millis(200))?
 
-            if let Event::Key(key) = event::read()? {
+            && let Event::Key(key) = event::read()? {
                 match key.code {
                     KeyCode::Char('q') => break,
                     KeyCode::Char('1') => app.goto_screen(app::AppScreen::Library),
@@ -102,15 +99,14 @@ fn main() -> Result<()> {
                     KeyCode::Char('a') => {
                         let mut lib = app.library_mut();
 
-                        if app.screen == AppScreen::Browser {
-                            if let Some(BrowserItem::Entry(path)) = app.browser.list.selected_item()
+                        if app.screen == AppScreen::Browser
+                            && let Some(BrowserItem::Entry(path)) = app.browser.list.selected_item()
                             {
                                 let tracks = scan_path_for_tracks(path);
                                 lib.tracks = tracks.clone();
 
                                 lib.add_tracks(tracks);
                             }
-                        }
                     }
 
                     KeyCode::Down => match app.screen {
@@ -147,7 +143,7 @@ fn main() -> Result<()> {
                             app.browser.open_selected();
                         }
 
-                        let mut lib = app.library_mut();
+                        let lib = app.library_mut();
 
                         if app.screen == AppScreen::Library
                             && lib.focus == LibraryFocus::Right
@@ -214,7 +210,6 @@ fn main() -> Result<()> {
                     _ => {}
                 }
             }
-        }
     }
 
     disable_raw_mode()?;

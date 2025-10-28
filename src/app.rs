@@ -47,10 +47,11 @@ impl App {
         library.lock().unwrap().artists = artists;
         library.lock().unwrap().rebuild_visible_rows(); // Make sure UI stays in sync
 
+        #[allow(clippy::arc_with_non_send_sync)]
         Self {
             screen: AppScreen::Browser,
             browser: BrowserState::new(),
-            library: library,
+            library,
             player: Arc::new(Mutex::new(Player::new())),
             play_queue: Vec::new(),
             queue_index: 0,
@@ -121,28 +122,6 @@ impl App {
         }
     }
 
-    pub fn set_play_queue(&mut self, tracks: Vec<PathBuf>, start_index: usize) {
-        self.play_queue = tracks;
-        self.queue_index = start_index;
-    }
-
-    pub fn pause(&mut self) {
-        let mut player = self.player.lock().unwrap();
-        player.set_paused(true);
-        self.paused_at = Some(Instant::now());
-    }
-
-    pub fn resume(&mut self) {
-        let mut player = self.player.lock().unwrap();
-        player.set_paused(false);
-
-        if let Some(paused_at) = self.paused_at {
-            self.paused_duration += paused_at.elapsed();
-        }
-
-        self.paused_at = None;
-    }
-
     pub fn toggle_pause(&mut self) {
         let mut player = self.player.lock().unwrap();
 
@@ -162,14 +141,87 @@ impl App {
         self.playback_start = Some(std::time::Instant::now());
         self.paused_duration = std::time::Duration::ZERO;
         self.paused_at = None;
-        // optional: if you rely on app.playback_duration elsewhere
         self.playback_duration = track.duration.unwrap_or(0);
     }
+}
 
-    /// Fallback: reset timers when we don't have a concrete track object yet.
-    pub fn reset_playback_timers(&mut self) {
-        self.playback_start = Some(Instant::now());
-        self.paused_duration = Duration::ZERO;
-        self.paused_at = None;
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_test_track(title: &str, duration: u64) -> LibraryTrack {
+        LibraryTrack {
+            path: PathBuf::from(format!("/test/{}.mp3", title)),
+            title: title.to_string(),
+            artist: "Test Artist".to_string(),
+            album: "Test Album".to_string(),
+            track_number: Some(1),
+            album_artist: "Test Artist".to_string(),
+            duration: Some(duration),
+        }
+    }
+
+    #[test]
+    fn test_begin_playback_resets_timers() {
+        let mut app = App::new();
+
+        app.playback_start = Some(Instant::now());
+        app.paused_duration = Duration::from_secs(10);
+        app.paused_at = Some(Instant::now());
+
+        let track = create_test_track("test", 180);
+        app.begin_playback(&track);
+
+        assert!(app.playback_start.is_some());
+        assert_eq!(app.paused_duration, Duration::ZERO);
+        assert!(app.paused_at.is_none());
+        assert_eq!(app.playback_duration, 180);
+        assert_eq!(app.current_track.as_ref().unwrap().title, "test");
+    }
+
+    #[test]
+    fn test_toggle_pause_sets_paused_at() {
+        let mut app = App::new();
+
+        assert!(app.paused_at.is_none());
+
+        app.toggle_pause();
+
+        assert!(app.paused_at.is_some());
+        assert!(app.player_mut().is_paused);
+    }
+
+    #[test]
+    fn test_toggle_pause_accumulates_paused_duration() {
+        let mut app = App::new();
+
+        let start = Instant::now();
+        app.paused_at = Some(start);
+        app.paused_duration = Duration::from_secs(5);
+
+        app.toggle_pause();
+
+        std::thread::sleep(Duration::from_millis(100));
+
+        app.toggle_pause();
+
+        assert!(app.paused_at.is_none());
+        assert!(app.paused_duration > Duration::from_secs(5));
+        assert!(!app.player_mut().is_paused);
+    }
+
+    #[test]
+    fn test_toggle_pause_cycles_state() {
+        let mut app = App::new();
+
+        assert!(!app.player_mut().is_paused);
+
+        app.toggle_pause();
+        assert!(app.player_mut().is_paused);
+        assert!(app.paused_at.is_some());
+
+        app.toggle_pause();
+        assert!(!app.player_mut().is_paused);
+        assert!(app.paused_at.is_none());
     }
 }
