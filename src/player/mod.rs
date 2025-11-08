@@ -141,6 +141,7 @@ impl Player {
 
         // Spawn decoding thread
         let decode_buffer = Arc::clone(&sample_buf);
+        let paused_flag_decoder = Arc::clone(&self.paused_flag);
         let handle = thread::spawn(move || {
             while let Ok(packet) = format.next_packet() {
                 let decoded = match decoder.decode(&packet) {
@@ -228,8 +229,20 @@ impl Player {
 
                 decode_buffer.lock().unwrap().extend(samples);
 
-                // simulate streaming rate (may be adjustable)
-                std::thread::sleep(Duration::from_millis(10));
+                // Adaptive buffering: only sleep if we have enough samples buffered
+                // Target: keep 2-3 seconds of audio buffered to prevent underruns
+                let target_buffer_size = (sample_rate as usize) * (channels) * 2;
+                let current_size = decode_buffer.lock().unwrap().len();
+
+                // If paused, sleep and wait instead of filling the buffer
+                if paused_flag_decoder.load(Ordering::SeqCst) {
+                    std::thread::sleep(Duration::from_millis(50));
+                    continue;
+                }
+
+                if current_size > target_buffer_size {
+                    std::thread::sleep(Duration::from_millis(10));
+                }
                     }
 
             // Decoding is finished!
@@ -261,5 +274,83 @@ impl Player {
     pub fn set_paused(&mut self, paused: bool) {
         self.is_paused = paused;
         self.paused_flag.store(paused, Ordering::SeqCst);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::{Arc, Mutex};
+    use std::collections::VecDeque;
+    use std::thread;
+    use std::time::Duration;
+
+    #[test]
+    fn test_paused_flag_stops_buffer_filling() {
+        // Simulate the decoder thread behavior with pause flag
+        let buffer: Arc<Mutex<VecDeque<f32>>> = Arc::new(Mutex::new(VecDeque::new()));
+        let paused_flag = Arc::new(AtomicBool::new(false));
+
+        let buffer_clone = Arc::clone(&buffer);
+        let paused_clone = Arc::clone(&paused_flag);
+
+        // Spawn a thread that simulates the decoder
+        let handle = thread::spawn(move || {
+            for i in 0..10 {
+                // Check pause flag like the real decoder does
+                if paused_clone.load(Ordering::SeqCst) {
+                    thread::sleep(Duration::from_millis(10));
+                    continue;
+                }
+
+                // Simulate adding samples
+                buffer_clone.lock().unwrap().push_back(i as f32);
+                thread::sleep(Duration::from_millis(10));
+            }
+        });
+
+        // Let it run for a bit
+        thread::sleep(Duration::from_millis(25));
+
+        // Pause it
+        paused_flag.store(true, Ordering::SeqCst);
+        let size_when_paused = buffer.lock().unwrap().len();
+
+        // Wait while paused - buffer should not grow
+        thread::sleep(Duration::from_millis(50));
+        let size_while_paused = buffer.lock().unwrap().len();
+
+        // Unpause
+        paused_flag.store(false, Ordering::SeqCst);
+
+        // Wait for completion
+        handle.join().unwrap();
+
+        let final_size = buffer.lock().unwrap().len();
+
+        // Assert that buffer didn't grow while paused
+        assert_eq!(size_when_paused, size_while_paused,
+            "Buffer should not grow while paused");
+
+        // Assert that buffer continued growing after unpause
+        assert!(final_size > size_while_paused,
+            "Buffer should grow after unpause");
+    }
+
+    #[test]
+    fn test_set_paused_updates_flag() {
+        let mut player = Player::new();
+
+        assert!(!player.is_paused);
+        assert!(!player.paused_flag.load(Ordering::SeqCst));
+
+        player.set_paused(true);
+        assert!(player.is_paused);
+        assert!(player.paused_flag.load(Ordering::SeqCst));
+
+        player.set_paused(false);
+        assert!(!player.is_paused);
+        assert!(!player.paused_flag.load(Ordering::SeqCst));
     }
 }
