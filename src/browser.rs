@@ -50,6 +50,14 @@ impl BrowserState {
     pub fn move_down(&mut self) {
         self.list.move_down();
     }
+
+    pub fn go_to_top(&mut self) {
+        self.list.go_to_top();
+    }
+
+    pub fn go_to_bottom(&mut self) {
+        self.list.go_to_bottom();
+    }
 }
 
 fn read_dir_items(dir: &PathBuf) -> Vec<BrowserItem> {
