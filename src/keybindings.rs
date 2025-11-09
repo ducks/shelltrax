@@ -15,10 +15,6 @@ impl KeyBinding {
       modifiers: KeyModifiers::empty(),
     }
   }
-
-  pub fn with_modifiers(code: KeyCode, modifiers: KeyModifiers) -> Self {
-    Self { code, modifiers }
-  }
 }
 
 pub struct KeyMap {

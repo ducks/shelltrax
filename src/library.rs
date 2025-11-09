@@ -437,13 +437,11 @@ fn extract_duration_symphonia(path: &Path) -> Option<u64> {
         )
         .ok()?;
 
-    if let Some(track) = probed.format.default_track() {
-        if let Some(tb) = track.codec_params.time_base {
-            if let Some(n_frames) = track.codec_params.n_frames {
+    if let Some(track) = probed.format.default_track()
+        && let Some(tb) = track.codec_params.time_base
+            && let Some(n_frames) = track.codec_params.n_frames {
                 return Some((n_frames * tb.numer as u64) / tb.denom as u64);
             }
-        }
-    }
 
     None
 }
