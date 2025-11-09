@@ -35,7 +35,6 @@ pub enum Action {
 
   // Global
   Quit,
-  None,
 }
 
 impl Action {
@@ -121,13 +120,12 @@ impl Action {
       Action::AddToLibrary => {
         let mut lib = app.library_mut();
 
-        if app.screen == AppScreen::Browser {
-          if let Some(BrowserItem::Entry(path)) = app.browser.list.selected_item() {
+        if app.screen == AppScreen::Browser
+          && let Some(BrowserItem::Entry(path)) = app.browser.list.selected_item() {
             let tracks = scan_path_for_tracks(path);
             lib.tracks = tracks.clone();
             lib.add_tracks(tracks);
           }
-        }
       }
       Action::PlaySelected => {
         if app.screen == AppScreen::Browser {
