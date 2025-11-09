@@ -51,17 +51,34 @@ cargo run
 
 ## Keybindings
 
+Shelltrax supports both arrow keys and vim-style navigation.
+
+### Global
+
 | Key           | Action                          |
 |---------------|---------------------------------|
+| `q`           | Quit                            |
 | `1`           | Go to Library                   |
 | `5`           | Go to Browser                   |
 
+### Navigation
+
+| Key           | Action                          |
+|---------------|---------------------------------|
+| `j` / `Down`  | Move down                       |
+| `k` / `Up`    | Move up                         |
+| `h`           | Move left (context-dependent)   |
+| `l`           | Move right (context-dependent)  |
+| `g`           | Go to top                       |
+| `G`           | Go to bottom                    |
 
 ### Browser View
 
 | Key           | Action                          |
 |---------------|---------------------------------|
-| `a`           | Add file/dir to playlist        |
+| `a`           | Add file/dir to library         |
+| `Backspace`   | Go up a directory               |
+| `Enter`       | Open directory                  |
 
 ### Library View
 
@@ -69,12 +86,11 @@ cargo run
 |---------------|---------------------------------|
 | `Tab`         | Toggle focus left/right         |
 | `Enter`       | Play selected track             |
+| `Space`       | Toggle artist/album expanded    |
 | `c`           | Toggle pause/resume             |
-| `n`           | Next song                       |
+| `b`           | Next track                      |
+| `z`           | Previous track                  |
 | `p`           | Toggle autoplay                 |
-| `Backspace`   | Go up a directory (Browser)     |
-| `Space`       | Toggle artist/album view        |
-| `Up/Down`     | Navigate lists                  |
 
 ## Planned Features / TODO
 

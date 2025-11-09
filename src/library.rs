@@ -124,6 +124,16 @@ impl LibraryState {
         self.selection = visual_rows.get(next_index).map(Self::row_to_selection);
     }
 
+    pub fn go_to_top(&mut self) {
+        let visual_rows = Self::build_visible_rows(&self.artists);
+        self.selection = visual_rows.first().map(Self::row_to_selection);
+    }
+
+    pub fn go_to_bottom(&mut self) {
+        let visual_rows = Self::build_visible_rows(&self.artists);
+        self.selection = visual_rows.last().map(Self::row_to_selection);
+    }
+
     pub fn toggle_expanded(&mut self) {
         if let Some(LibrarySelection::Artist { artist_index }) = self.selection
             && let Some(artist) = self.artists.get_mut(artist_index) {
@@ -203,6 +213,14 @@ impl LibraryState {
         if self.track_index + 1 < track_count {
             self.track_index += 1;
         }
+    }
+
+    pub fn track_go_to_top(&mut self) {
+        self.track_index = 0;
+    }
+
+    pub fn track_go_to_bottom(&mut self, track_count: usize) {
+        self.track_index = track_count.saturating_sub(1);
     }
 
     pub fn visible_tracks(&self) -> Vec<LibraryTrack> {
@@ -355,7 +373,7 @@ pub fn scan_path_for_tracks(path: &Path) -> Vec<LibraryTrack> {
             .map(|s| s.to_ascii_lowercase());
 
         let (title, artist, album, track_number, album_artist, duration) = match ext.as_deref() {
-            Some("mp3") => extract_id3_tags(path),
+            Some("mp3") => extract_mp3_tags(path),
             Some("flac") => extract_symphonia_tags(path),
             _ => continue,
         };
@@ -374,7 +392,8 @@ pub fn scan_path_for_tracks(path: &Path) -> Vec<LibraryTrack> {
     tracks
 }
 
-fn extract_id3_tags(path: &Path) -> (String, String, String, Option<u32>, String, Option<u64>) {
+fn extract_mp3_tags(path: &Path) -> (String, String, String, Option<u32>, String, Option<u64>) {
+    // Use id3 for metadata (it handles ID3 tags better)
     let tag = Id3Tag::read_from_path(path).ok();
 
     let title = tag
@@ -392,18 +411,41 @@ fn extract_id3_tags(path: &Path) -> (String, String, String, Option<u32>, String
         .and_then(|t| t.album())
         .unwrap_or("Unknown Album")
         .to_string();
-
     let album_artist = tag
         .as_ref()
         .and_then(|t| t.album_artist())
-        .unwrap_or("Unknown Album Artist")
+        .unwrap_or(&artist)
         .to_string();
-
     let track_number = tag.and_then(|t| t.track());
 
+    // Use Symphonia for duration
+    let duration = extract_duration_symphonia(path);
 
+    (title, artist, album, track_number, album_artist, duration)
+}
 
-    (title, artist, album, track_number, album_artist, None)
+fn extract_duration_symphonia(path: &Path) -> Option<u64> {
+    let file = File::open(path).ok()?;
+    let mss = MediaSourceStream::new(Box::new(file), Default::default());
+
+    let probed = get_probe()
+        .format(
+            &Hint::new(),
+            mss,
+            &FormatOptions::default(),
+            &MetadataOptions::default(),
+        )
+        .ok()?;
+
+    if let Some(track) = probed.format.default_track() {
+        if let Some(tb) = track.codec_params.time_base {
+            if let Some(n_frames) = track.codec_params.n_frames {
+                return Some((n_frames * tb.numer as u64) / tb.denom as u64);
+            }
+        }
+    }
+
+    None
 }
 
 fn extract_symphonia_tags(path: &Path) -> (String, String, String, Option<u32>, String, Option<u64>) {

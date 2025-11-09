@@ -40,4 +40,16 @@ impl<T> ListSelector<T> {
     pub fn selected_item(&self) -> Option<&T> {
         self.entries.get(self.selected)
     }
+
+    pub fn go_to_top(&mut self) {
+        self.selected = 0;
+        self.state.select(Some(0));
+    }
+
+    pub fn go_to_bottom(&mut self) {
+        if !self.entries.is_empty() {
+            self.selected = self.entries.len() - 1;
+            self.state.select(Some(self.selected));
+        }
+    }
 }

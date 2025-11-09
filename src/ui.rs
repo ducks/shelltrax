@@ -48,7 +48,9 @@ pub fn render_footer(
     let adjusted = elapsed.saturating_sub(app.paused_duration);
     let total = Duration::from_secs(app.playback_duration);
 
-    let ratio = if total.as_secs_f64() > 0.0 {
+    let has_duration = app.playback_duration > 0;
+
+    let ratio = if has_duration && total.as_secs_f64() > 0.0 {
         adjusted.as_secs_f64() / total.as_secs_f64()
     } else {
         0.0
@@ -69,14 +71,22 @@ pub fn render_footer(
     f.render_widget(gauge, layout[0]);
 
     let elapsed_secs = adjusted.as_secs();
-    let total_secs = total.as_secs();
-    let time_text = format!(
-        "{:02}:{:02} / {:02}:{:02}",
-        elapsed_secs / 60,
-        elapsed_secs % 60,
-        total_secs / 60,
-        total_secs % 60
-    );
+    let time_text = if has_duration {
+        let total_secs = total.as_secs();
+        format!(
+            "{:02}:{:02} / {:02}:{:02}",
+            elapsed_secs / 60,
+            elapsed_secs % 60,
+            total_secs / 60,
+            total_secs % 60
+        )
+    } else {
+        format!(
+            "{:02}:{:02} / --:--",
+            elapsed_secs / 60,
+            elapsed_secs % 60
+        )
+    };
 
     let time_display = Paragraph::new(time_text);
     f.render_widget(time_display, layout[1]);
