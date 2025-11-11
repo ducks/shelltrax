@@ -114,6 +114,7 @@ impl LibraryState {
         let current_index = Self::selected_index(&visual_rows, self.selection);
         let next_index = (current_index + 1).min(visual_rows.len().saturating_sub(1));
         self.selection = visual_rows.get(next_index).map(Self::row_to_selection);
+        self.track_index = 0;
     }
 
     pub fn move_up(&mut self) {
@@ -122,16 +123,19 @@ impl LibraryState {
         let current_index = Self::selected_index(&visual_rows, self.selection);
         let next_index = current_index.saturating_sub(1);
         self.selection = visual_rows.get(next_index).map(Self::row_to_selection);
+        self.track_index = 0;
     }
 
     pub fn go_to_top(&mut self) {
         let visual_rows = Self::build_visible_rows(&self.artists);
         self.selection = visual_rows.first().map(Self::row_to_selection);
+        self.track_index = 0;
     }
 
     pub fn go_to_bottom(&mut self) {
         let visual_rows = Self::build_visible_rows(&self.artists);
         self.selection = visual_rows.last().map(Self::row_to_selection);
+        self.track_index = 0;
     }
 
     pub fn toggle_expanded(&mut self) {
