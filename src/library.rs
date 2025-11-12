@@ -512,6 +512,11 @@ fn extract_symphonia_tags(path: &Path) -> (String, String, String, Option<u32>, 
         }
     }
 
+    // Fall back to artist if album_artist wasn't set
+    if album_artist == "Unknown Album Artist" && artist != "Unknown Artist" {
+        album_artist = artist.clone();
+    }
+
     let mut duration = None;
 
     if let Some(track) = probed.format.default_track()
