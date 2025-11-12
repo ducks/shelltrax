@@ -99,10 +99,10 @@ Shelltrax supports both arrow keys and vim-style navigation.
 - [x] Library persistence
 - [x] Audio playback via `rodio`
 - [x] Autoplay
+- [x] Footer bar with now playing info and progress
 - [ ] Sort directories before files
 - [ ] Playlist screen with queue
-- [ ] Footer bar with help / now playing
 - [ ] Config file for keybindings and paths
 - [ ] Save/restore last visited directory
-- [ ] Match more `cmus` keybindings and behaviors (e.g. `Tab`, `v`, `:`)
+- [ ] Match more `cmus` keybindings and behaviors (e.g. `v`, `:`)
 
