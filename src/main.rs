@@ -54,22 +54,41 @@ fn main() -> Result<()> {
             .autoplay_trigger
             .swap(false, Ordering::SeqCst)
         {
+            use app::RepeatMode;
+
             let next_track = {
                 let mut plyr = app.player.lock().unwrap();
                 let mut lib = app.library.lock().unwrap();
 
                 let mut result = None;
 
-                if let Some(current_path) = &plyr.current_path
-                    && app.autoplay_enabled
-                        && let Some(next_path) = lib.next_track_path(current_path) {
-                            lib.select_track_by_path(&next_path);
-                            plyr.play(&next_path);
-
-                            if let Some(next_track) = lib.track_by_path(&next_path) {
-                                result = Some(next_track.clone());
+                if let Some(current_path) = plyr.current_path.clone() {
+                    match app.repeat_mode {
+                        RepeatMode::Track => {
+                            // Replay same track
+                            plyr.play(&current_path);
+                            if let Some(track) = lib.track_by_path(&current_path) {
+                                result = Some(track.clone());
                             }
                         }
+                        RepeatMode::All if app.autoplay_enabled => {
+                            // Play next track
+                            if let Some(next_path) = lib.next_track_path(&current_path) {
+                                lib.select_track_by_path(&next_path);
+                                plyr.play(&next_path);
+
+                                if let Some(next_track) = lib.track_by_path(&next_path) {
+                                    result = Some(next_track.clone());
+                                }
+                            }
+                        }
+                        RepeatMode::Off => {
+                            // Stop playback
+                            log::debug!("Repeat off - stopping playback");
+                        }
+                        _ => {}
+                    }
+                }
 
                 result
             };
@@ -78,7 +97,8 @@ fn main() -> Result<()> {
                 app.begin_playback(&track);
 
                 log::debug!(
-                    "Autoplay switched to: {} - {}",
+                    "Repeat mode: {:?}, playing: {} - {}",
+                    app.repeat_mode,
                     track.album_artist,
                     track.title
                 );

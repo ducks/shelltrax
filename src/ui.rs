@@ -3,7 +3,7 @@ use crate::{
     screens,
 };
 use ratatui::{
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::Style,
     widgets::{Block, Borders, Gauge, Paragraph},
     Frame,
@@ -96,7 +96,28 @@ pub fn render_footer(
             "{} - {} - {}",
             track.artist, track.title, track.album
         );
+
+        let autoplay_status = if app.autoplay_enabled { "on" } else { "off" };
+        let status_info = format!(
+            "repeat: {} | autoplay: {}",
+            app.repeat_mode.as_str(),
+            autoplay_status
+        );
+
+        // Split the bottom line into left and right sections
+        let info_layout = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Percentage(70),
+                Constraint::Percentage(30),
+            ])
+            .split(layout[2]);
+
         let track_display = Paragraph::new(track_info);
-        f.render_widget(track_display, layout[2]);
+        f.render_widget(track_display, info_layout[0]);
+
+        let status_display = Paragraph::new(status_info)
+            .alignment(Alignment::Right);
+        f.render_widget(status_display, info_layout[1]);
     }
 }
