@@ -1,0 +1,35 @@
+# Shelltrax Theme Configuration
+# Place this file at ~/.config/shelltrax/theme.toml
+
+# General UI colors
+border = "white"
+border_focused = "green"
+text = "white"
+text_selected = "black"
+background_selected = "green"
+
+# Progress bar / footer
+progress_bar = "green"
+footer_text = "white"
+
+# Library view
+artist_text = "cyan"
+album_text = "yellow"
+track_text = "white"
+
+# Supported color formats:
+# - Named colors: black, red, green, yellow, blue, magenta, cyan, white, gray, darkgray
+# - Light variants: lightred, lightgreen, lightyellow, lightblue, lightmagenta, lightcyan
+# - Hex colors: #RRGGBB (e.g., #b16286 for purple)
+
+# Example alternative theme (Gruvbox):
+# border = "#ebdbb2"
+# border_focused = "#b8bb26"
+# text = "#ebdbb2"
+# text_selected = "#282828"
+# background_selected = "#b8bb26"
+# progress_bar = "#b8bb26"
+# footer_text = "#ebdbb2"
+# artist_text = "#83a598"
+# album_text = "#fabd2f"
+# track_text = "#ebdbb2"

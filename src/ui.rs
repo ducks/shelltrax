@@ -4,7 +4,7 @@ use crate::{
 };
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
-    style::{Color, Style},
+    style::Style,
     widgets::{Block, Borders, Gauge, Paragraph},
     Frame,
 };
@@ -66,7 +66,7 @@ pub fn render_footer(
         .split(inner);
 
     let gauge = Gauge::default()
-        .gauge_style(Style::default().fg(Color::Green))
+        .gauge_style(Style::default().fg(app.theme.parse_color(&app.theme.progress_bar)))
         .ratio(ratio.min(1.0));
     f.render_widget(gauge, layout[0]);
 

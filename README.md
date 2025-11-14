@@ -49,6 +49,25 @@ cd shelltrax
 cargo run
 ```
 
+## Configuration
+
+### Theming
+
+Shelltrax supports custom color themes via a TOML configuration file.
+
+1. Copy the example theme file:
+```bash
+mkdir -p ~/.config/shelltrax
+cp theme.toml.example ~/.config/shelltrax/theme.toml
+```
+
+2. Edit `~/.config/shelltrax/theme.toml` to customize colors
+
+The theme supports:
+- Named colors (e.g., `red`, `green`, `cyan`)
+- Hex colors (e.g., `#b16286`)
+- See `theme.toml.example` for all available options and examples
+
 ## Keybindings
 
 Shelltrax supports both arrow keys and vim-style navigation.

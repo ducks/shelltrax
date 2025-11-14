@@ -12,6 +12,7 @@ use crate::library::{
 use crate::persistence;
 
 use crate::player::Player;
+use crate::theme::Theme;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppScreen {
@@ -28,6 +29,7 @@ pub struct App {
     pub queue_index: usize,
     pub autoplay_enabled: bool,
     pub current_track: Option<LibraryTrack>,
+    pub theme: Theme,
 
     /// Playback duration in seconds
     pub playback_duration: u64,
@@ -57,6 +59,7 @@ impl App {
             queue_index: 0,
             autoplay_enabled: true,
             current_track: None,
+            theme: Theme::load(),
             playback_duration: 0,
             playback_start: None,
             paused_at: None,
