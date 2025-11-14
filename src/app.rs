@@ -20,6 +20,31 @@ pub enum AppScreen {
     Browser,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RepeatMode {
+    Off,
+    Track,
+    All,
+}
+
+impl RepeatMode {
+    pub fn next(self) -> Self {
+        match self {
+            RepeatMode::Off => RepeatMode::Track,
+            RepeatMode::Track => RepeatMode::All,
+            RepeatMode::All => RepeatMode::Off,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            RepeatMode::Off => "off",
+            RepeatMode::Track => "track",
+            RepeatMode::All => "all",
+        }
+    }
+}
+
 pub struct App {
     pub screen: AppScreen,
     pub browser: BrowserState,
@@ -28,6 +53,7 @@ pub struct App {
     pub play_queue: Vec<PathBuf>,
     pub queue_index: usize,
     pub autoplay_enabled: bool,
+    pub repeat_mode: RepeatMode,
     pub current_track: Option<LibraryTrack>,
     pub theme: Theme,
 
@@ -58,6 +84,7 @@ impl App {
             play_queue: Vec::new(),
             queue_index: 0,
             autoplay_enabled: true,
+            repeat_mode: RepeatMode::All,
             current_track: None,
             theme: Theme::load(),
             playback_duration: 0,

@@ -24,6 +24,7 @@ pub enum Action {
   NextTrack,
   PreviousTrack,
   ToggleAutoplay,
+  CycleRepeat,
 
   // Library
   ToggleExpanded,
@@ -76,6 +77,9 @@ impl Action {
       Action::NextTrack => app.play_next_track(),
       Action::ToggleAutoplay => {
         app.autoplay_enabled = !app.autoplay_enabled;
+      }
+      Action::CycleRepeat => {
+        app.repeat_mode = app.repeat_mode.next();
       }
       Action::ToggleExpanded => {
         if app.screen == AppScreen::Library {

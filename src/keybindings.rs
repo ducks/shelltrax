@@ -68,6 +68,7 @@ impl KeyMap {
     self.bind(KeyBinding::new(KeyCode::Char('b')), Action::NextTrack);
     self.bind(KeyBinding::new(KeyCode::Char('z')), Action::PreviousTrack);
     self.bind(KeyBinding::new(KeyCode::Char('p')), Action::ToggleAutoplay);
+    self.bind(KeyBinding::new(KeyCode::Char('r')), Action::CycleRepeat);
 
     // Library
     self.bind(KeyBinding::new(KeyCode::Char(' ')), Action::ToggleExpanded);
