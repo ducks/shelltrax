@@ -55,7 +55,11 @@ pub fn draw(frame: &mut Frame, app: &mut App, area: Rect) {
     let left_list = List::new(left_items)
         .block(Block::default().title("Library").borders(Borders::ALL))
         .highlight_symbol("➤ ")
-        .highlight_style(Style::default().bg(Color::Green).fg(Color::Black));
+        .highlight_style(
+            Style::default()
+                .bg(app.theme.parse_color(&app.theme.background_selected))
+                .fg(app.theme.parse_color(&app.theme.text_selected))
+        );
 
     frame.render_stateful_widget(left_list, chunks[0], &mut left_state);
 
@@ -75,7 +79,11 @@ pub fn draw(frame: &mut Frame, app: &mut App, area: Rect) {
     let right_list = List::new(right_items)
         .block(Block::default().title("Tracks").borders(Borders::ALL))
         .highlight_symbol("➤ ")
-        .highlight_style(Style::default().bg(Color::Blue).fg(Color::Black));
+        .highlight_style(
+            Style::default()
+                .bg(app.theme.parse_color(&app.theme.background_selected))
+                .fg(app.theme.parse_color(&app.theme.text_selected))
+        );
 
     if library.focus == LibraryFocus::Right {
         frame.render_stateful_widget(right_list, chunks[1], &mut right_state);

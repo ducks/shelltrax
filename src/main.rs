@@ -7,6 +7,7 @@ mod list;
 mod persistence;
 mod player;
 mod screens;
+mod theme;
 mod ui;
 
 use app::App;

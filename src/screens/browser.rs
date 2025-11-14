@@ -20,7 +20,11 @@ pub fn draw(frame: &mut Frame, app: &mut App, area: Rect) {
 
     let list = List::new(items)
         .block(Block::default().title("Browser").borders(Borders::ALL))
-        .highlight_style(Style::default().bg(Color::Blue).fg(Color::White))
+        .highlight_style(
+            Style::default()
+                .bg(app.theme.parse_color(&app.theme.background_selected))
+                .fg(app.theme.parse_color(&app.theme.text_selected))
+        )
         .highlight_symbol("➤ ");
 
     frame.render_stateful_widget(list, area, &mut app.browser.list.state);
