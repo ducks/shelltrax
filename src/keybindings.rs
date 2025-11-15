@@ -77,6 +77,10 @@ impl KeyMap {
 
     // Browser
     self.bind(KeyBinding::new(KeyCode::Backspace), Action::GoUpDirectory);
+
+    // Search
+    self.bind(KeyBinding::new(KeyCode::Char('/')), Action::EnterSearch);
+    self.bind(KeyBinding::new(KeyCode::Esc), Action::ExitSearch);
   }
 
   // Future: load from config file

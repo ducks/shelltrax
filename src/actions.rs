@@ -34,6 +34,10 @@ pub enum Action {
   // Browser
   GoUpDirectory,
 
+  // Search
+  EnterSearch,
+  ExitSearch,
+
   // Global
   Quit,
 }
@@ -175,6 +179,14 @@ impl Action {
             }
           }
         }
+      }
+      Action::EnterSearch => {
+        app.search_active = true;
+        app.search_query.clear();
+      }
+      Action::ExitSearch => {
+        app.search_active = false;
+        app.search_query.clear();
       }
       _ => {}
     }

@@ -112,13 +112,51 @@ fn main() -> Result<()> {
         if event::poll(std::time::Duration::from_millis(200))?
             && let Event::Key(key) = event::read()?
         {
-            let binding = KeyBinding::new(key.code);
-
-            if let Some(action) = keymap.get_action(&binding) {
-                if matches!(action, Action::Quit) {
-                    break;
+            // Handle search mode input
+            if app.search_active {
+                use crossterm::event::KeyCode;
+                match key.code {
+                    KeyCode::Char(c) => {
+                        app.search_query.push(c);
+                        // Jump to match as user types
+                        match app.screen {
+                            app::AppScreen::Library => {
+                                app.library_mut().jump_to_match(&app.search_query);
+                            }
+                            app::AppScreen::Browser => {
+                                app.browser.jump_to_match(&app.search_query);
+                            }
+                        }
+                    }
+                    KeyCode::Backspace => {
+                        app.search_query.pop();
+                        // Re-search with updated query
+                        match app.screen {
+                            app::AppScreen::Library => {
+                                app.library_mut().jump_to_match(&app.search_query);
+                            }
+                            app::AppScreen::Browser => {
+                                app.browser.jump_to_match(&app.search_query);
+                            }
+                        }
+                    }
+                    KeyCode::Esc | KeyCode::Enter => {
+                        // Exit search mode, keeping current position
+                        app.search_active = false;
+                        app.search_query.clear();
+                    }
+                    _ => {}
                 }
-                action.execute(&mut app);
+            } else {
+                // Normal mode: handle keybindings
+                let binding = KeyBinding::new(key.code);
+
+                if let Some(action) = keymap.get_action(&binding) {
+                    if matches!(action, Action::Quit) {
+                        break;
+                    }
+                    action.execute(&mut app);
+                }
             }
         }
     }
