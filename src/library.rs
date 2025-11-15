@@ -138,6 +138,50 @@ impl LibraryState {
         self.track_index = 0;
     }
 
+    pub fn jump_to_match(&mut self, query: &str) {
+        if query.is_empty() {
+            return;
+        }
+
+        let query_lower = query.to_lowercase();
+        let visual_rows = Self::build_visible_rows(&self.artists);
+
+        // Search through visible rows for a match
+        for row in visual_rows.iter() {
+            let matches = match row {
+                VisibleRow::Artist { artist_index } => {
+                    self.artists[*artist_index].name.to_lowercase().contains(&query_lower)
+                }
+                VisibleRow::Album { artist_index, album_index } => {
+                    self.artists[*artist_index].albums[*album_index]
+                        .name
+                        .to_lowercase()
+                        .contains(&query_lower)
+                }
+            };
+
+            if matches {
+                self.selection = Some(Self::row_to_selection(row));
+                self.track_index = 0;
+                return;
+            }
+        }
+
+        // If no match in left pane, search tracks in current selection
+        if self.focus == LibraryFocus::Right {
+            let tracks = self.visible_tracks();
+            for (i, track) in tracks.iter().enumerate() {
+                let matches = track.title.to_lowercase().contains(&query_lower)
+                    || track.artist.to_lowercase().contains(&query_lower);
+
+                if matches {
+                    self.track_index = i;
+                    return;
+                }
+            }
+        }
+    }
+
     pub fn toggle_expanded(&mut self) {
         if let Some(LibrarySelection::Artist { artist_index }) = self.selection
             && let Some(artist) = self.artists.get_mut(artist_index) {
@@ -643,5 +687,161 @@ mod tests {
         assert_eq!(tracks.len(), 2);
         assert_eq!(tracks[0].title, "Track 1");
         assert_eq!(tracks[1].title, "Track 2");
+    }
+
+    #[test]
+    fn test_jump_to_match_finds_artist() {
+        let mut lib = LibraryState::new();
+
+        lib.add_tracks(vec![
+            create_test_track("Artist A", "Album 1", "Track 1", 1),
+            create_test_track("Artist B", "Album 2", "Track 2", 1),
+            create_test_track("Artist C", "Album 3", "Track 3", 1),
+        ]);
+
+        lib.rebuild_visible_rows();
+
+        // Start at first artist
+        lib.selection = Some(LibrarySelection::Artist { artist_index: 0 });
+
+        // Search for "Artist B"
+        lib.jump_to_match("artist b");
+
+        // Should now be on Artist B
+        assert_eq!(
+            lib.selection,
+            Some(LibrarySelection::Artist { artist_index: 1 })
+        );
+    }
+
+    #[test]
+    fn test_jump_to_match_finds_album() {
+        let mut lib = LibraryState::new();
+
+        lib.add_tracks(vec![
+            create_test_track("Artist", "Album A", "Track 1", 1),
+            create_test_track("Artist", "Album B", "Track 2", 1),
+            create_test_track("Artist", "Album C", "Track 3", 1),
+        ]);
+
+        lib.rebuild_visible_rows();
+        lib.artists[0].expanded = true;
+        lib.rebuild_visible_rows();
+
+        // Start at first album
+        lib.selection = Some(LibrarySelection::Album {
+            artist_index: 0,
+            album_index: 0,
+        });
+
+        // Search for "Album C"
+        lib.jump_to_match("album c");
+
+        // Should now be on Album C
+        assert_eq!(
+            lib.selection,
+            Some(LibrarySelection::Album {
+                artist_index: 0,
+                album_index: 2
+            })
+        );
+    }
+
+    #[test]
+    fn test_jump_to_match_partial_match() {
+        let mut lib = LibraryState::new();
+
+        lib.add_tracks(vec![
+            create_test_track("The Beatles", "Abbey Road", "Track 1", 1),
+            create_test_track("Pink Floyd", "Dark Side", "Track 2", 1),
+        ]);
+
+        lib.rebuild_visible_rows();
+
+        // Search with partial string
+        lib.jump_to_match("beat");
+
+        // Should find The Beatles (index 1 because artists are sorted alphabetically)
+        assert_eq!(
+            lib.selection,
+            Some(LibrarySelection::Artist { artist_index: 1 })
+        );
+    }
+
+    #[test]
+    fn test_jump_to_match_case_insensitive() {
+        let mut lib = LibraryState::new();
+
+        lib.add_tracks(vec![create_test_track("ARTIST", "ALBUM", "Track", 1)]);
+
+        lib.rebuild_visible_rows();
+
+        // Search with lowercase
+        lib.jump_to_match("artist");
+
+        // Should find the artist despite case difference
+        assert_eq!(
+            lib.selection,
+            Some(LibrarySelection::Artist { artist_index: 0 })
+        );
+    }
+
+    #[test]
+    fn test_jump_to_match_no_match() {
+        let mut lib = LibraryState::new();
+
+        lib.add_tracks(vec![create_test_track("Artist", "Album", "Track", 1)]);
+
+        lib.rebuild_visible_rows();
+        let original_selection = lib.selection;
+
+        // Search for something that doesn't exist
+        lib.jump_to_match("nonexistent");
+
+        // Selection should remain unchanged
+        assert_eq!(lib.selection, original_selection);
+    }
+
+    #[test]
+    fn test_jump_to_match_empty_query() {
+        let mut lib = LibraryState::new();
+
+        lib.add_tracks(vec![create_test_track("Artist", "Album", "Track", 1)]);
+
+        lib.rebuild_visible_rows();
+        let original_selection = lib.selection;
+
+        // Search with empty string
+        lib.jump_to_match("");
+
+        // Selection should remain unchanged
+        assert_eq!(lib.selection, original_selection);
+    }
+
+    #[test]
+    fn test_jump_to_match_finds_track() {
+        let mut lib = LibraryState::new();
+
+        lib.add_tracks(vec![
+            create_test_track("Artist", "Album", "Hello World", 1),
+            create_test_track("Artist", "Album", "Goodbye Moon", 2),
+            create_test_track("Artist", "Album", "Sunrise", 3),
+        ]);
+
+        lib.rebuild_visible_rows();
+        lib.artists[0].expanded = true;
+        lib.rebuild_visible_rows();
+
+        lib.selection = Some(LibrarySelection::Album {
+            artist_index: 0,
+            album_index: 0,
+        });
+        lib.focus = LibraryFocus::Right;
+
+        // Search for a track
+        lib.jump_to_match("goodbye");
+
+        // Should jump to track index 1 (Goodbye Moon)
+        assert_eq!(lib.track_index, 1);
     }
 }

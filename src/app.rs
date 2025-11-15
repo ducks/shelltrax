@@ -65,6 +65,10 @@ pub struct App {
 
     pub paused_at: Option<Instant>,
     pub paused_duration: Duration,
+
+    /// Search mode
+    pub search_active: bool,
+    pub search_query: String,
 }
 
 impl App {
@@ -91,6 +95,8 @@ impl App {
             playback_start: None,
             paused_at: None,
             paused_duration: Duration::from_secs(0),
+            search_active: false,
+            search_query: String::new(),
         }
     }
 

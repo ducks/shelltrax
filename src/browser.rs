@@ -58,6 +58,33 @@ impl BrowserState {
     pub fn go_to_bottom(&mut self) {
         self.list.go_to_bottom();
     }
+
+    pub fn jump_to_match(&mut self, query: &str) {
+        if query.is_empty() {
+            return;
+        }
+
+        let query_lower = query.to_lowercase();
+
+        // Search through entries for a match
+        for (i, item) in self.list.entries.iter().enumerate() {
+            let matches = match item {
+                BrowserItem::UpDirectory => false,
+                BrowserItem::Entry(path) => {
+                    if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
+                        file_name.to_lowercase().contains(&query_lower)
+                    } else {
+                        false
+                    }
+                }
+            };
+
+            if matches {
+                self.list.selected = i;
+                return;
+            }
+        }
+    }
 }
 
 fn read_dir_items(dir: &PathBuf) -> Vec<BrowserItem> {

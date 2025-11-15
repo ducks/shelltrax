@@ -36,6 +36,14 @@ pub fn render_footer(
     let inner = block.inner(area);
     f.render_widget(block, area);
 
+    // If search is active, show search prompt instead of normal footer
+    if app.search_active {
+        let search_text = format!("/{}", app.search_query);
+        let search_display = Paragraph::new(search_text);
+        f.render_widget(search_display, inner);
+        return;
+    }
+
     let Some(start) = app.playback_start else { return };
 
     let now = Instant::now();
