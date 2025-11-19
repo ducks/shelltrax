@@ -33,6 +33,7 @@ pub enum Action {
 
   // Browser
   GoUpDirectory,
+  ImportZip,
 
   // Search
   EnterSearch,
@@ -188,7 +189,151 @@ impl Action {
         app.search_active = false;
         app.search_query.clear();
       }
+      Action::ImportZip => {
+        if app.screen == AppScreen::Browser
+          && let Some(BrowserItem::Entry(path)) = app.browser.list.selected_item() {
+            if path.extension().and_then(|s| s.to_str()) == Some("zip") {
+              if let Err(e) = import_zip_archive(path, &app.browser.current_dir) {
+                log::error!("Failed to import zip: {}", e);
+              } else {
+                // Refresh browser to show the new folder
+                use crate::browser::BrowserState;
+                let current_dir = app.browser.current_dir.clone();
+                app.browser = BrowserState::new();
+                app.browser.current_dir = current_dir;
+                let entries = crate::browser::read_dir_items(&app.browser.current_dir);
+                app.browser.list.set_entries(entries);
+              }
+            }
+          }
+      }
       _ => {}
     }
   }
+}
+
+fn import_zip_archive(zip_path: &std::path::Path, target_dir: &std::path::Path) -> anyhow::Result<()> {
+  use std::fs;
+
+  // Open the zip file
+  let file = fs::File::open(zip_path)?;
+  let mut archive = zip::ZipArchive::new(file)?;
+
+  // Create a temporary directory for extraction
+  let temp_dir = target_dir.join(".temp_extract");
+  fs::create_dir_all(&temp_dir)?;
+
+  // Extract all files
+  for i in 0..archive.len() {
+    let mut file = archive.by_index(i)?;
+    let outpath = temp_dir.join(file.mangled_name());
+
+    if file.name().ends_with('/') {
+      fs::create_dir_all(&outpath)?;
+    } else {
+      if let Some(p) = outpath.parent() {
+        fs::create_dir_all(p)?;
+      }
+      let mut outfile = fs::File::create(&outpath)?;
+      std::io::copy(&mut file, &mut outfile)?;
+    }
+  }
+
+  // Find first audio file and read metadata tags
+  let audio_extensions = ["mp3", "flac", "m4a", "ogg", "wav"];
+  let mut album_name = None;
+
+  for entry in walkdir::WalkDir::new(&temp_dir) {
+    let entry = entry?;
+    if let Some(ext) = entry.path().extension().and_then(|s| s.to_str()) {
+      let ext_lower = ext.to_lowercase();
+      if audio_extensions.contains(&ext_lower.as_str()) {
+        // Try to read ID3 tags if it's an MP3
+        if ext_lower == "mp3" {
+          if let Ok(tag) = id3::Tag::read_from_path(entry.path()) {
+            if let Some(album) = tag.album() {
+              album_name = Some(sanitize_folder_name(album));
+              break;
+            }
+          }
+        }
+        // Try to read metadata using symphonia for FLAC and other formats
+        else if let Some(album) = read_audio_metadata(entry.path()) {
+          album_name = Some(sanitize_folder_name(&album));
+          break;
+        }
+      }
+    }
+  }
+
+  // Use album name or fallback to zip filename
+  let folder_name = album_name.unwrap_or_else(|| {
+    zip_path
+      .file_stem()
+      .and_then(|s| s.to_str())
+      .unwrap_or("imported_album")
+      .to_string()
+  });
+
+  let final_dir = target_dir.join(&folder_name);
+
+  // Move temp directory to final location
+  fs::rename(&temp_dir, &final_dir)?;
+
+  log::info!("Imported zip to: {}", final_dir.display());
+
+  Ok(())
+}
+
+fn read_audio_metadata(path: &std::path::Path) -> Option<String> {
+  use symphonia::core::io::MediaSourceStream;
+  use symphonia::core::meta::MetadataOptions;
+  use symphonia::core::probe::Hint;
+  use std::fs::File;
+
+  let file = File::open(path).ok()?;
+  let mss = MediaSourceStream::new(Box::new(file), Default::default());
+
+  let mut hint = Hint::new();
+  if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
+    hint.with_extension(ext);
+  }
+
+  let meta_opts: MetadataOptions = Default::default();
+  let format_opts = symphonia::core::formats::FormatOptions::default();
+
+  let mut probed = symphonia::default::get_probe()
+    .format(&hint, mss, &format_opts, &meta_opts)
+    .ok()?;
+
+  // Try to get album from metadata
+  if let Some(metadata) = probed.format.metadata().current() {
+    for tag in metadata.tags() {
+      if tag.std_key == Some(symphonia::core::meta::StandardTagKey::Album) {
+        return Some(tag.value.to_string());
+      }
+    }
+  }
+
+  // Also check metadata from probe
+  if let Some(metadata) = probed.metadata.get() {
+    if let Some(rev) = metadata.current() {
+      for tag in rev.tags() {
+        if tag.std_key == Some(symphonia::core::meta::StandardTagKey::Album) {
+          return Some(tag.value.to_string());
+        }
+      }
+    }
+  }
+
+  None
+}
+
+fn sanitize_folder_name(name: &str) -> String {
+  name.chars()
+    .map(|c| match c {
+      '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
+      _ => c,
+    })
+    .collect()
 }

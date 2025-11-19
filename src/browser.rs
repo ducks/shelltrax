@@ -87,7 +87,7 @@ impl BrowserState {
     }
 }
 
-fn read_dir_items(dir: &PathBuf) -> Vec<BrowserItem> {
+pub fn read_dir_items(dir: &PathBuf) -> Vec<BrowserItem> {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return vec![BrowserItem::UpDirectory];
     };
