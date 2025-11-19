@@ -77,6 +77,7 @@ impl KeyMap {
 
     // Browser
     self.bind(KeyBinding::new(KeyCode::Backspace), Action::GoUpDirectory);
+    self.bind(KeyBinding::new(KeyCode::Char('x')), Action::ImportZip);
 
     // Search
     self.bind(KeyBinding::new(KeyCode::Char('/')), Action::EnterSearch);
