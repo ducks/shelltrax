@@ -191,19 +191,18 @@ impl Action {
       }
       Action::ImportZip => {
         if app.screen == AppScreen::Browser
-          && let Some(BrowserItem::Entry(path)) = app.browser.list.selected_item() {
-            if path.extension().and_then(|s| s.to_str()) == Some("zip") {
-              if let Err(e) = import_zip_archive(path, &app.browser.current_dir) {
-                log::error!("Failed to import zip: {}", e);
-              } else {
-                // Refresh browser to show the new folder
-                use crate::browser::BrowserState;
-                let current_dir = app.browser.current_dir.clone();
-                app.browser = BrowserState::new();
-                app.browser.current_dir = current_dir;
-                let entries = crate::browser::read_dir_items(&app.browser.current_dir);
-                app.browser.list.set_entries(entries);
-              }
+          && let Some(BrowserItem::Entry(path)) = app.browser.list.selected_item()
+          && path.extension().and_then(|s| s.to_str()) == Some("zip") {
+            if let Err(e) = import_zip_archive(path, &app.browser.current_dir) {
+              log::error!("Failed to import zip: {}", e);
+            } else {
+              // Refresh browser to show the new folder
+              use crate::browser::BrowserState;
+              let current_dir = app.browser.current_dir.clone();
+              app.browser = BrowserState::new();
+              app.browser.current_dir = current_dir;
+              let entries = crate::browser::read_dir_items(&app.browser.current_dir);
+              app.browser.list.set_entries(entries);
             }
           }
       }
@@ -250,12 +249,11 @@ fn import_zip_archive(zip_path: &std::path::Path, target_dir: &std::path::Path) 
       if audio_extensions.contains(&ext_lower.as_str()) {
         // Try to read ID3 tags if it's an MP3
         if ext_lower == "mp3" {
-          if let Ok(tag) = id3::Tag::read_from_path(entry.path()) {
-            if let Some(album) = tag.album() {
+          if let Ok(tag) = id3::Tag::read_from_path(entry.path())
+            && let Some(album) = tag.album() {
               album_name = Some(sanitize_folder_name(album));
               break;
             }
-          }
         }
         // Try to read metadata using symphonia for FLAC and other formats
         else if let Some(album) = read_audio_metadata(entry.path()) {
@@ -316,15 +314,14 @@ fn read_audio_metadata(path: &std::path::Path) -> Option<String> {
   }
 
   // Also check metadata from probe
-  if let Some(metadata) = probed.metadata.get() {
-    if let Some(rev) = metadata.current() {
+  if let Some(metadata) = probed.metadata.get()
+    && let Some(rev) = metadata.current() {
       for tag in rev.tags() {
         if tag.std_key == Some(symphonia::core::meta::StandardTagKey::Album) {
           return Some(tag.value.to_string());
         }
       }
     }
-  }
 
   None
 }
