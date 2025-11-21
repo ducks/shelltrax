@@ -30,6 +30,7 @@ pub enum Action {
   ToggleExpanded,
   SwitchFocus,
   AddToLibrary,
+  DeleteFromLibrary,
 
   // Browser
   GoUpDirectory,
@@ -135,6 +136,12 @@ impl Action {
             lib.tracks = tracks.clone();
             lib.add_tracks(tracks);
           }
+      }
+      Action::DeleteFromLibrary => {
+        if app.screen == AppScreen::Library {
+          let mut lib = app.library_mut();
+          lib.delete_selected();
+        }
       }
       Action::PlaySelected => {
         if app.screen == AppScreen::Browser {

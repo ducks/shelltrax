@@ -203,6 +203,76 @@ impl LibraryState {
             }
     }
 
+    pub fn delete_selected(&mut self) {
+        match self.selection {
+            Some(LibrarySelection::Artist { artist_index }) => {
+                // Delete entire artist
+                if artist_index < self.artists.len() {
+                    self.artists.remove(artist_index);
+
+                    // Adjust selection after deletion
+                    if self.artists.is_empty() {
+                        self.selection = None;
+                    } else if artist_index >= self.artists.len() {
+                        // If we deleted the last artist, select the new last one
+                        let new_index = self.artists.len().saturating_sub(1);
+                        self.selection = Some(LibrarySelection::Artist {
+                            artist_index: new_index
+                        });
+                    }
+                    // Otherwise selection stays at same index (next artist moved into place)
+
+                    self.rebuild_visible_rows();
+                    persistence::save_library(&self.artists).ok();
+                }
+            }
+            Some(LibrarySelection::Album { artist_index, album_index }) => {
+                // Delete specific album
+                if let Some(artist) = self.artists.get_mut(artist_index) {
+                    if album_index < artist.albums.len() {
+                        artist.albums.remove(album_index);
+
+                        // If artist has no more albums, delete the artist too
+                        if artist.albums.is_empty() {
+                            self.artists.remove(artist_index);
+
+                            // Adjust selection
+                            if self.artists.is_empty() {
+                                self.selection = None;
+                            } else if artist_index >= self.artists.len() {
+                                let new_index = self.artists.len().saturating_sub(1);
+                                self.selection = Some(LibrarySelection::Artist {
+                                    artist_index: new_index
+                                });
+                            } else {
+                                self.selection = Some(LibrarySelection::Artist {
+                                    artist_index
+                                });
+                            }
+                        } else {
+                            // Artist still has albums, adjust album selection
+                            if album_index >= artist.albums.len() {
+                                // Deleted last album, select new last album
+                                let new_album_index = artist.albums.len().saturating_sub(1);
+                                self.selection = Some(LibrarySelection::Album {
+                                    artist_index,
+                                    album_index: new_album_index,
+                                });
+                            }
+                            // Otherwise selection stays at same index
+                        }
+
+                        self.rebuild_visible_rows();
+                        persistence::save_library(&self.artists).ok();
+                    }
+                }
+            }
+            None => {
+                // Nothing selected, do nothing
+            }
+        }
+    }
+
     fn build_visible_rows(artists: &[ArtistNode]) -> Vec<VisibleRow> {
         let mut rows = Vec::new();
         for (artist_index, artist) in artists.iter().enumerate() {
@@ -1059,5 +1129,133 @@ mod tests {
             .and_then(|n| n.to_str())
             .map(|s| s.starts_with("._"))
             .unwrap_or(false));
+    }
+
+    #[test]
+    fn test_delete_artist() {
+        let mut lib = LibraryState::new();
+
+        lib.add_tracks(vec![
+            create_test_track("Artist A", "Album 1", "Track 1", 1),
+            create_test_track("Artist B", "Album 2", "Track 2", 1),
+            create_test_track("Artist C", "Album 3", "Track 3", 1),
+        ]);
+
+        assert_eq!(lib.artists.len(), 3);
+
+        // Select and delete second artist (Artist B)
+        lib.selection = Some(LibrarySelection::Artist { artist_index: 1 });
+        lib.delete_selected();
+
+        // Should have 2 artists left
+        assert_eq!(lib.artists.len(), 2);
+        assert_eq!(lib.artists[0].name, "Artist A");
+        assert_eq!(lib.artists[1].name, "Artist C");
+
+        // Selection should still be at index 1 (now pointing to Artist C)
+        assert_eq!(
+            lib.selection,
+            Some(LibrarySelection::Artist { artist_index: 1 })
+        );
+    }
+
+    #[test]
+    fn test_delete_last_artist() {
+        let mut lib = LibraryState::new();
+
+        lib.add_tracks(vec![
+            create_test_track("Artist A", "Album 1", "Track 1", 1),
+            create_test_track("Artist B", "Album 2", "Track 2", 1),
+        ]);
+
+        // Delete last artist
+        lib.selection = Some(LibrarySelection::Artist { artist_index: 1 });
+        lib.delete_selected();
+
+        assert_eq!(lib.artists.len(), 1);
+        assert_eq!(lib.artists[0].name, "Artist A");
+
+        // Selection should move to index 0
+        assert_eq!(
+            lib.selection,
+            Some(LibrarySelection::Artist { artist_index: 0 })
+        );
+    }
+
+    #[test]
+    fn test_delete_album() {
+        let mut lib = LibraryState::new();
+
+        lib.add_tracks(vec![
+            create_test_track("Artist", "Album 1", "Track 1", 1),
+            create_test_track("Artist", "Album 2", "Track 2", 1),
+            create_test_track("Artist", "Album 3", "Track 3", 1),
+        ]);
+
+        assert_eq!(lib.artists.len(), 1);
+        assert_eq!(lib.artists[0].albums.len(), 3);
+
+        // Expand artist and select second album
+        lib.artists[0].expanded = true;
+        lib.rebuild_visible_rows();
+        lib.selection = Some(LibrarySelection::Album {
+            artist_index: 0,
+            album_index: 1,
+        });
+
+        lib.delete_selected();
+
+        // Should have 2 albums left
+        assert_eq!(lib.artists[0].albums.len(), 2);
+        assert_eq!(lib.artists[0].albums[0].name, "Album 1");
+        assert_eq!(lib.artists[0].albums[1].name, "Album 3");
+
+        // Selection should still be at album index 1
+        assert_eq!(
+            lib.selection,
+            Some(LibrarySelection::Album {
+                artist_index: 0,
+                album_index: 1
+            })
+        );
+    }
+
+    #[test]
+    fn test_delete_last_album_removes_artist() {
+        let mut lib = LibraryState::new();
+
+        lib.add_tracks(vec![create_test_track("Artist", "Album", "Track", 1)]);
+
+        assert_eq!(lib.artists.len(), 1);
+        assert_eq!(lib.artists[0].albums.len(), 1);
+
+        // Select and delete the only album
+        lib.artists[0].expanded = true;
+        lib.rebuild_visible_rows();
+        lib.selection = Some(LibrarySelection::Album {
+            artist_index: 0,
+            album_index: 0,
+        });
+
+        lib.delete_selected();
+
+        // Artist should be removed too
+        assert_eq!(lib.artists.len(), 0);
+        assert_eq!(lib.selection, None);
+    }
+
+    #[test]
+    fn test_delete_with_no_selection() {
+        let mut lib = LibraryState::new();
+
+        lib.add_tracks(vec![create_test_track("Artist", "Album", "Track", 1)]);
+
+        let original_len = lib.artists.len();
+        lib.selection = None;
+
+        lib.delete_selected();
+
+        // Nothing should change
+        assert_eq!(lib.artists.len(), original_len);
     }
 }
