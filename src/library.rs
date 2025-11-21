@@ -71,9 +71,26 @@ impl LibraryState {
             let album_dir = track.path.parent().and_then(|p| p.file_name()).map(|n| n.to_string_lossy().to_string());
             let artist_dir = track.path.parent().and_then(|p| p.parent()).and_then(|p| p.file_name()).map(|n| n.to_string_lossy().to_string());
 
-            // Use directory-based grouping to prevent tag-based album splitting
-            let artist_name = artist_dir.unwrap_or_else(|| track.album_artist.clone());
-            let album_name = album_dir.unwrap_or_else(|| track.album.clone());
+            // Check if we have a proper Artist/Album directory structure
+            // Fall back to tags if directory names look like generic folders
+            let use_directory_grouping = artist_dir.as_ref()
+                .map(|name| {
+                    // Don't use directory if it looks like a top-level folder
+                    !matches!(name.as_str(), "Music" | "Downloads" | "Documents" | "Desktop" | "media")
+                        && track.path.parent().and_then(|p| p.parent()).is_some()
+                })
+                .unwrap_or(false);
+
+            let (artist_name, album_name) = if use_directory_grouping {
+                // Use directory-based grouping to prevent tag-based album splitting
+                (
+                    artist_dir.unwrap_or_else(|| track.album_artist.clone()),
+                    album_dir.unwrap_or_else(|| track.album.clone())
+                )
+            } else {
+                // Fall back to ID3 tags when directory structure doesn't match Artist/Album pattern
+                (track.album_artist.clone(), track.album.clone())
+            };
 
             // Check if artist exists (by directory name)
             if let Some(artist) = self.artists.iter_mut().find(|a| a.name == artist_name) {
