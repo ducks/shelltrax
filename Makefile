@@ -35,7 +35,9 @@ endif
 	@git checkout -b release/v$(VERSION_CLEAN)
 	@echo "Bumping version to $(VERSION_CLEAN)..."
 	@sed -i 's/^version = .*/version = "$(VERSION_CLEAN)"/' Cargo.toml
-	@git add Cargo.toml
+	@echo "Updating Cargo.lock..."
+	@cargo check --quiet 2>/dev/null || true
+	@git add Cargo.toml Cargo.lock
 	@git commit -m "chore: bump version to $(VERSION_CLEAN)"
 	@echo ""
 	@echo "✓ Created branch release/v$(VERSION_CLEAN)"

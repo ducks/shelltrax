@@ -447,17 +447,6 @@ impl LibraryState {
         (items, playable_indices)
     }
 
-    pub fn next_track_path(&self, current: &Path) -> Option<PathBuf> {
-        let tracks = self.visible_tracks();
-
-        for (i, track) in tracks.iter().enumerate() {
-            if track.path == current && i + 1 < tracks.len() {
-                return Some(tracks[i + 1].path.clone());
-            }
-        }
-
-        None
-    }
 
     pub fn select_track_by_path(&mut self, path: &Path) {
         let tracks = self.visible_tracks();
