@@ -56,53 +56,41 @@ fn main() -> Result<()> {
         {
             use app::RepeatMode;
 
-            let next_track = {
-                let mut plyr = app.player.lock().unwrap();
-                let mut lib = app.library.lock().unwrap();
+            // Handle autoplay based on repeat mode
+            match app.repeat_mode {
+                RepeatMode::Track => {
+                    // Replay same track
+                    let current_path = {
+                        let plyr = app.player.lock().unwrap();
+                        plyr.current_path.clone()
+                    };
 
-                let mut result = None;
+                    if let Some(path) = current_path {
+                        {
+                            let mut plyr = app.player.lock().unwrap();
+                            plyr.play(&path);
+                        }
 
-                if let Some(current_path) = plyr.current_path.clone() {
-                    match app.repeat_mode {
-                        RepeatMode::Track => {
-                            // Replay same track
-                            plyr.play(&current_path);
-                            if let Some(track) = lib.track_by_path(&current_path) {
-                                result = Some(track.clone());
-                            }
-                        }
-                        RepeatMode::All if app.autoplay_enabled => {
-                            // Play next track
-                            if let Some(next_path) = lib.next_track_path(&current_path) {
-                                lib.select_track_by_path(&next_path);
-                                plyr.play(&next_path);
+                        let track = {
+                            let lib = app.library.lock().unwrap();
+                            lib.track_by_path(&path).cloned()
+                        };
 
-                                if let Some(next_track) = lib.track_by_path(&next_path) {
-                                    result = Some(next_track.clone());
-                                }
-                            }
+                        if let Some(track) = track {
+                            app.begin_playback(&track);
+                            log::debug!("Repeat Track: replaying {}", track.title);
                         }
-                        RepeatMode::Off => {
-                            // Stop playback
-                            log::debug!("Repeat off - stopping playback");
-                        }
-                        _ => {}
                     }
                 }
-
-                result
-            };
-
-            if let Some(track) = next_track {
-                app.begin_playback(&track);
-
-                log::debug!(
-                    "Repeat mode: {:?}, playing: {} - {}",
-                    app.repeat_mode,
-                    track.album_artist,
-                    track.title
-                );
-                log::debug!("playback_start: {:?}", app.playback_start);
+                RepeatMode::All if app.autoplay_enabled => {
+                    // Play next track from queue
+                    app.play_next_track();
+                }
+                RepeatMode::Off => {
+                    // Stop playback
+                    log::debug!("Repeat off - stopping playback");
+                }
+                _ => {}
             }
         }
 
