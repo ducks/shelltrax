@@ -10,13 +10,21 @@ terminal.
 ## Features
 
 - TUI interface with multiple screens
-  - Library view
+  - Library view with artist/album hierarchy
   - File browser
   - Playlist (coming soon)
 - Navigate directories using keyboard
 - Dotfiles are hidden by default
 - Modular, extensible codebase
-- Persistent library
+- Persistent library with smart metadata handling
+  - Directory-based album grouping (prevents album splitting)
+  - Filename fallbacks for missing ID3 tags
+  - Automatic track number extraction from filenames
+  - Filters out macOS metadata files (__MACOSX, ._ files)
+- ZIP import: Extract and import albums directly from zip files
+- Search functionality: Quick jump to artists, albums, or tracks
+- Delete from library: Remove entries without touching actual files
+- Playback controls with autoplay and repeat modes
 
 ## Screenshots
 
@@ -79,6 +87,8 @@ Shelltrax supports both arrow keys and vim-style navigation.
 | `q`           | Quit                            |
 | `1`           | Go to Library                   |
 | `5`           | Go to Browser                   |
+| `/`           | Enter search mode               |
+| `Esc`         | Exit search mode                |
 
 ### Navigation
 
@@ -96,6 +106,7 @@ Shelltrax supports both arrow keys and vim-style navigation.
 | Key           | Action                          |
 |---------------|---------------------------------|
 | `a`           | Add file/dir to library         |
+| `x`           | Extract and import zip file     |
 | `Backspace`   | Go up a directory               |
 | `Enter`       | Open directory                  |
 
@@ -106,22 +117,32 @@ Shelltrax supports both arrow keys and vim-style navigation.
 | `Tab`         | Toggle focus left/right         |
 | `Enter`       | Play selected track             |
 | `Space`       | Toggle artist/album expanded    |
+| `d`           | Delete from library (files safe)|
 | `c`           | Toggle pause/resume             |
 | `b`           | Next track                      |
 | `z`           | Previous track                  |
 | `p`           | Toggle autoplay                 |
+| `r`           | Cycle repeat mode (Off/All/Track)|
 
 ## Planned Features / TODO
 
 - [x] Hide dotfiles
 - [x] Prevent duplication
 - [x] Library persistence
-- [x] Audio playback via `rodio`
+- [x] Audio playback via `cpal`
 - [x] Autoplay
 - [x] Footer bar with now playing info and progress
+- [x] Search functionality (jump to artists/albums/tracks)
+- [x] Delete from library (without touching files)
+- [x] ZIP import and extraction
+- [x] Directory-based album grouping
+- [x] Filename fallbacks for metadata
+- [x] Repeat modes (Off/All/Track)
 - [ ] Sort directories before files
 - [ ] Playlist screen with queue
 - [ ] Config file for keybindings and paths
 - [ ] Save/restore last visited directory
 - [ ] Match more `cmus` keybindings and behaviors (e.g. `v`, `:`)
+- [ ] Gapless playback
+- [ ] Audio visualizer
 
