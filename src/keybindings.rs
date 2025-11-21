@@ -74,6 +74,7 @@ impl KeyMap {
     self.bind(KeyBinding::new(KeyCode::Char(' ')), Action::ToggleExpanded);
     self.bind(KeyBinding::new(KeyCode::Tab), Action::SwitchFocus);
     self.bind(KeyBinding::new(KeyCode::Char('a')), Action::AddToLibrary);
+    self.bind(KeyBinding::new(KeyCode::Char('d')), Action::DeleteFromLibrary);
 
     // Browser
     self.bind(KeyBinding::new(KeyCode::Backspace), Action::GoUpDirectory);
