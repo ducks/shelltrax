@@ -1,6 +1,6 @@
 [package]
 name = "shelltrax"
-version = "0.1.0"
+version = "v20251121.2"
 edition = "2024"
 
 [dependencies]
