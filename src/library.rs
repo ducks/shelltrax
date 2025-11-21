@@ -228,8 +228,8 @@ impl LibraryState {
             }
             Some(LibrarySelection::Album { artist_index, album_index }) => {
                 // Delete specific album
-                if let Some(artist) = self.artists.get_mut(artist_index) {
-                    if album_index < artist.albums.len() {
+                if let Some(artist) = self.artists.get_mut(artist_index)
+                    && album_index < artist.albums.len() {
                         artist.albums.remove(album_index);
 
                         // If artist has no more albums, delete the artist too
@@ -265,7 +265,6 @@ impl LibraryState {
                         self.rebuild_visible_rows();
                         persistence::save_library(&self.artists).ok();
                     }
-                }
             }
             None => {
                 // Nothing selected, do nothing
@@ -505,11 +504,10 @@ pub fn scan_path_for_tracks(path: &Path) -> Vec<LibraryTrack> {
         let path = entry.path();
 
         // Skip macOS metadata files (._filename)
-        if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
-            if filename.starts_with("._") {
+        if let Some(filename) = path.file_name().and_then(|n| n.to_str())
+            && filename.starts_with("._") {
                 continue;
             }
-        }
 
         let ext = path
             .extension()
@@ -542,21 +540,18 @@ fn extract_track_number_from_filename(path: &Path) -> Option<u32> {
     let filename = path.file_stem()?.to_str()?;
 
     // Try pattern: "... - 01 - ..." or "01 - ..."
-    if let Some(parts) = filename.split(" - ").nth(1).or_else(|| filename.split(" - ").next()) {
-        if let Ok(num) = parts.trim().parse::<u32>() {
-            if num > 0 && num < 999 {
+    if let Some(parts) = filename.split(" - ").nth(1).or_else(|| filename.split(" - ").next())
+        && let Ok(num) = parts.trim().parse::<u32>()
+            && num > 0 && num < 999 {
                 return Some(num);
             }
-        }
-    }
 
     // Try pattern: "01. Title" or "01 Title"
     let first_token = filename.split_whitespace().next()?;
-    if let Ok(num) = first_token.trim_end_matches('.').parse::<u32>() {
-        if num > 0 && num < 999 {
+    if let Ok(num) = first_token.trim_end_matches('.').parse::<u32>()
+        && num > 0 && num < 999 {
             return Some(num);
         }
-    }
 
     None
 }
