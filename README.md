@@ -1,10 +1,12 @@
 # TUI Music Player (Rust)
 
+![A scallop shell listening to a podcast using headphones](logo.png)
+
 A terminal-based music player written in Rust using
 [ratatui](https://github.com/ratatui-org/ratatui) and
 [crossterm](https://github.com/crossterm-rs/crossterm).
 
-Navigate your filesystem, browse audio files, and play music — all in the
+Navigate your filesystem, browse audio files, and play music -- all in the
 terminal.
 
 ## Features
