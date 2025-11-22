@@ -1,6 +1,7 @@
 # TUI Music Player (Rust)
 
-![A scallop shell listening to a podcast using headphones](logo.png)
+<img alt="A scallop shell listening to podcasts on headphones" src="logo.png"
+  width="300" style="text-align: center;" />
 
 A terminal-based music player written in Rust using
 [ratatui](https://github.com/ratatui-org/ratatui) and
