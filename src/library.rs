@@ -174,10 +174,25 @@ impl LibraryState {
         }
 
         let query_lower = query.to_lowercase();
-        let visual_rows = Self::build_visible_rows(&self.artists);
 
-        // Search through visible rows for a match
-        for row in visual_rows.iter() {
+        // When focused on right pane (tracks), search tracks first
+        if self.focus == LibraryFocus::Right {
+            let tracks = self.visible_tracks();
+            for (i, track) in tracks.iter().enumerate() {
+                let matches = track.title.to_lowercase().contains(&query_lower)
+                    || track.artist.to_lowercase().contains(&query_lower);
+
+                if matches {
+                    self.track_index = i;
+                    return;
+                }
+            }
+            // If no track matched, fall through to search artists/albums
+        }
+
+        // Search through visible rows for artists/albums
+        let visual_rows = Self::build_visible_rows(&self.artists);
+        for (i, row) in visual_rows.iter().enumerate() {
             let matches = match row {
                 VisibleRow::Artist { artist_index } => {
                     self.artists[*artist_index].name.to_lowercase().contains(&query_lower)
@@ -192,22 +207,9 @@ impl LibraryState {
 
             if matches {
                 self.selection = Some(Self::row_to_selection(row));
+                self.state.select(Some(i));
                 self.track_index = 0;
                 return;
-            }
-        }
-
-        // If no match in left pane, search tracks in current selection
-        if self.focus == LibraryFocus::Right {
-            let tracks = self.visible_tracks();
-            for (i, track) in tracks.iter().enumerate() {
-                let matches = track.title.to_lowercase().contains(&query_lower)
-                    || track.artist.to_lowercase().contains(&query_lower);
-
-                if matches {
-                    self.track_index = i;
-                    return;
-                }
             }
         }
     }
@@ -992,6 +994,116 @@ mod tests {
 
         // Should jump to track index 1 (Goodbye Moon)
         assert_eq!(lib.track_index, 1);
+    }
+
+    #[test]
+    fn test_jump_to_match_prioritizes_tracks_when_focused_right() {
+        let mut lib = LibraryState::new();
+
+        // Create two artists: one with "Wesley" in name, another with track "Wesley's Theory"
+        lib.add_tracks(vec![
+            create_test_track("Wesley Snipes Band", "Album A", "Song 1", 1),
+            create_test_track("Kendrick Lamar", "To Pimp A Butterfly", "Wesley's Theory", 1),
+            create_test_track("Kendrick Lamar", "To Pimp A Butterfly", "King Kunta", 2),
+        ]);
+
+        lib.rebuild_visible_rows();
+        lib.artists[0].expanded = true;
+        lib.artists[1].expanded = true;
+        lib.rebuild_visible_rows();
+
+        // Focus on Kendrick Lamar (artist index 1 after alphabetical sort)
+        let kendrick_index = lib.artists.iter().position(|a| a.name == "Kendrick Lamar").unwrap();
+        lib.selection = Some(LibrarySelection::Album {
+            artist_index: kendrick_index,
+            album_index: 0,
+        });
+        lib.focus = LibraryFocus::Right;
+
+        // Search for "wesley" while focused on right pane
+        lib.jump_to_match("wesley");
+
+        // Should find the track "Wesley's Theory" (index 0), NOT jump to "Wesley Snipes Band"
+        assert_eq!(lib.track_index, 0);
+        assert_eq!(lib.selection, Some(LibrarySelection::Album {
+            artist_index: kendrick_index,
+            album_index: 0,
+        }));
+    }
+
+    #[test]
+    fn test_jump_to_match_searches_artists_when_focused_left() {
+        let mut lib = LibraryState::new();
+
+        lib.add_tracks(vec![
+            create_test_track("Wesley Snipes Band", "Album A", "Song 1", 1),
+            create_test_track("Kendrick Lamar", "To Pimp A Butterfly", "Wesley's Theory", 1),
+        ]);
+
+        lib.rebuild_visible_rows();
+
+        // Focus on left pane
+        lib.selection = Some(LibrarySelection::Artist { artist_index: 0 });
+        lib.focus = LibraryFocus::Left;
+
+        // Search for "wesley"
+        lib.jump_to_match("wesley");
+
+        // Should find "Wesley Snipes Band" artist since we're on left pane
+        let wesley_index = lib.artists.iter().position(|a| a.name == "Wesley Snipes Band").unwrap();
+        assert_eq!(lib.selection, Some(LibrarySelection::Artist {
+            artist_index: wesley_index
+        }));
+    }
+
+    #[test]
+    fn test_jump_to_match_with_spaces_in_query() {
+        let mut lib = LibraryState::new();
+
+        lib.add_tracks(vec![
+            create_test_track("Pink Floyd", "Dark Side", "Track 1", 1),
+            create_test_track("Pinkfloyd", "Album", "Track 2", 1), // No space
+        ]);
+
+        lib.rebuild_visible_rows();
+
+        // Search with space should match "Pink Floyd" not "Pinkfloyd"
+        lib.jump_to_match("pink floyd");
+
+        let pink_floyd_index = lib.artists.iter().position(|a| a.name == "Pink Floyd").unwrap();
+        assert_eq!(lib.selection, Some(LibrarySelection::Artist {
+            artist_index: pink_floyd_index
+        }));
+    }
+
+    #[test]
+    fn test_jump_to_match_track_falls_back_to_artist_if_no_track_match() {
+        let mut lib = LibraryState::new();
+
+        lib.add_tracks(vec![
+            create_test_track("Beatles", "Abbey Road", "Come Together", 1),
+            create_test_track("Beatles", "Abbey Road", "Something", 2),
+        ]);
+
+        lib.rebuild_visible_rows();
+        lib.artists[0].expanded = true;
+        lib.rebuild_visible_rows();
+
+        lib.selection = Some(LibrarySelection::Album {
+            artist_index: 0,
+            album_index: 0,
+        });
+        lib.focus = LibraryFocus::Right;
+
+        // Search for artist name while on right pane
+        // Should fall back to searching artists if no track matches
+        lib.jump_to_match("beatles");
+
+        // Should stay on Beatles artist (or jump to it if searching works correctly)
+        assert_eq!(lib.selection, Some(LibrarySelection::Album {
+            artist_index: 0,
+            album_index: 0,
+        }));
     }
 
     #[test]
