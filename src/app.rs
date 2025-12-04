@@ -12,6 +12,7 @@ use crate::library::{
 use crate::persistence;
 
 use crate::player::Player;
+use crate::scrobbler::{Scrobbler, ScrobblerConfig};
 use crate::theme::Theme;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -69,6 +70,12 @@ pub struct App {
     /// Search mode
     pub search_active: bool,
     pub search_query: String,
+
+    /// Scrobbler
+    pub scrobbler: Scrobbler,
+
+    /// Track if we've scrobbled the current track
+    pub scrobbled_current: bool,
 }
 
 impl App {
@@ -78,6 +85,9 @@ impl App {
         let library = Arc::new(Mutex::new(LibraryState::new()));
         library.lock().unwrap().artists = artists;
         library.lock().unwrap().rebuild_visible_rows(); // Make sure UI stays in sync
+
+        let scrobbler_config = ScrobblerConfig::from_env();
+        let scrobbler = Scrobbler::new(scrobbler_config);
 
         #[allow(clippy::arc_with_non_send_sync)]
         Self {
@@ -97,6 +107,8 @@ impl App {
             paused_duration: Duration::from_secs(0),
             search_active: false,
             search_query: String::new(),
+            scrobbler,
+            scrobbled_current: false,
         }
     }
 
@@ -109,12 +121,64 @@ impl App {
     }
 
     pub fn update(&mut self) {
+        // Check if we should scrobble the current track
+        self.check_and_scrobble();
+
         if self.autoplay_enabled
             && self.player_mut().is_loaded()
             && self.player_mut().is_done()
             && !self.player_mut().is_playing
         {
             self.play_next_track();
+        }
+    }
+
+    fn check_and_scrobble(&mut self) {
+        if self.scrobbled_current || !self.scrobbler.is_enabled() {
+            return;
+        }
+
+        let Some(ref track) = self.current_track else {
+            return;
+        };
+
+        let Some(playback_start) = self.playback_start else {
+            return;
+        };
+
+        // Calculate actual play time (excluding paused time)
+        let elapsed = playback_start.elapsed();
+        let paused = if let Some(paused_at) = self.paused_at {
+            self.paused_duration + paused_at.elapsed()
+        } else {
+            self.paused_duration
+        };
+        let play_time = elapsed.saturating_sub(paused);
+
+        // Scrobble after 50% of track or 4 minutes, whichever comes first
+        let scrobble_threshold = if let Some(duration) = track.duration {
+            let half_duration = Duration::from_secs(duration / 2);
+            let four_minutes = Duration::from_secs(240);
+            half_duration.min(four_minutes)
+        } else {
+            // If we don't know duration, scrobble after 4 minutes
+            Duration::from_secs(240)
+        };
+
+        if play_time >= scrobble_threshold {
+            let timestamp = std::time::SystemTime::now()
+                .checked_sub(play_time)
+                .unwrap_or(std::time::SystemTime::now());
+
+            self.scrobbler.scrobble(
+                &track.artist,
+                &track.title,
+                Some(&track.album),
+                track.duration,
+                timestamp,
+            );
+
+            self.scrobbled_current = true;
         }
     }
 
@@ -178,6 +242,16 @@ impl App {
         self.paused_duration = std::time::Duration::ZERO;
         self.paused_at = None;
         self.playback_duration = track.duration.unwrap_or(0);
+        self.scrobbled_current = false;
+
+        // Update now playing
+        if self.scrobbler.is_enabled() {
+            self.scrobbler.update_now_playing(
+                &track.artist,
+                &track.title,
+                Some(&track.album),
+            );
+        }
     }
 }
 
@@ -204,6 +278,7 @@ mod tests {
         app.playback_start = Some(Instant::now());
         app.paused_duration = Duration::from_secs(10);
         app.paused_at = Some(Instant::now());
+        app.scrobbled_current = true;
 
         let track = create_test_track("test", 180);
         app.begin_playback(&track);
@@ -213,6 +288,7 @@ mod tests {
         assert!(app.paused_at.is_none());
         assert_eq!(app.playback_duration, 180);
         assert_eq!(app.current_track.as_ref().unwrap().title, "test");
+        assert!(!app.scrobbled_current, "scrobbled_current should be reset");
     }
 
     #[test]
