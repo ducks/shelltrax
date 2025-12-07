@@ -18,3 +18,4 @@ anyhow = "1"
 simplelog = "0.12.1"
 log = "0.4"
 zip = "2.2"
+last-fm-rs = { git = "https://github.com/ducks/last-fm-rs" }

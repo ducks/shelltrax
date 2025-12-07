@@ -6,6 +6,7 @@ mod library;
 mod list;
 mod persistence;
 mod player;
+mod scrobbler;
 mod screens;
 mod theme;
 mod ui;
@@ -27,7 +28,8 @@ use simplelog::*;
 use std::fs::File;
 use std::sync::atomic::Ordering;
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     CombinedLogger::init(vec![WriteLogger::new(
         LevelFilter::Trace,
         Config::default(),
