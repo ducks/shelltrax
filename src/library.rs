@@ -101,10 +101,12 @@ impl LibraryState {
                     if !already_exists {
                         album.tracks.push(track);
                         album.tracks.sort_by_key(|t| {
-                            t.track_number.unwrap_or_else(|| {
+                            let disc = t.disc_number.unwrap_or(1);
+                            let track = t.track_number.unwrap_or_else(|| {
                                 // Try to extract track number from filename as fallback
                                 extract_track_number_from_filename(&t.path).unwrap_or(999)
-                            })
+                            });
+                            (disc, track)
                         });
                     }
                 } else {
@@ -477,6 +479,8 @@ pub struct LibraryTrack {
     pub artist: String,
     pub album: String,
     pub track_number: Option<u32>,
+    #[serde(default)]
+    pub disc_number: Option<u32>,
     pub album_artist: String,
     pub duration: Option<u64>,
 }
@@ -522,7 +526,7 @@ pub fn scan_path_for_tracks(path: &Path) -> Vec<LibraryTrack> {
             .and_then(|ext| ext.to_str())
             .map(|s| s.to_ascii_lowercase());
 
-        let (title, artist, album, track_number, album_artist, duration) = match ext.as_deref() {
+        let (title, artist, album, track_number, disc_number, album_artist, duration) = match ext.as_deref() {
             Some("mp3") => extract_mp3_tags(path),
             Some("flac") => extract_symphonia_tags(path),
             _ => continue,
@@ -534,6 +538,7 @@ pub fn scan_path_for_tracks(path: &Path) -> Vec<LibraryTrack> {
             artist,
             album,
             track_number,
+            disc_number,
             album_artist,
             duration,
         });
@@ -564,7 +569,7 @@ fn extract_track_number_from_filename(path: &Path) -> Option<u32> {
     None
 }
 
-fn extract_mp3_tags(path: &Path) -> (String, String, String, Option<u32>, String, Option<u64>) {
+fn extract_mp3_tags(path: &Path) -> (String, String, String, Option<u32>, Option<u32>, String, Option<u64>) {
     // Use id3 for metadata (it handles ID3 tags better)
     let tag = Id3Tag::read_from_path(path).ok();
 
@@ -597,13 +602,17 @@ fn extract_mp3_tags(path: &Path) -> (String, String, String, Option<u32>, String
         .unwrap_or(&artist)
         .to_string();
     let track_number = tag
+        .as_ref()
         .and_then(|t| t.track())
         .or_else(|| extract_track_number_from_filename(path));
+
+    let disc_number = tag
+        .and_then(|t| t.disc());
 
     // Use Symphonia for duration
     let duration = extract_duration_symphonia(path);
 
-    (title, artist, album, track_number, album_artist, duration)
+    (title, artist, album, track_number, disc_number, album_artist, duration)
 }
 
 fn extract_duration_symphonia(path: &Path) -> Option<u64> {
@@ -628,7 +637,7 @@ fn extract_duration_symphonia(path: &Path) -> Option<u64> {
     None
 }
 
-fn extract_symphonia_tags(path: &Path) -> (String, String, String, Option<u32>, String, Option<u64>) {
+fn extract_symphonia_tags(path: &Path) -> (String, String, String, Option<u32>, Option<u32>, String, Option<u64>) {
     use symphonia::core::meta::StandardTagKey;
 
     // Fallback to filename if title tag is missing
@@ -645,6 +654,7 @@ fn extract_symphonia_tags(path: &Path) -> (String, String, String, Option<u32>, 
                 filename_fallback,
                 "Unknown Artist".into(),
                 "Unknown Album".into(),
+                None,
                 None,
                 "Unknown Album Artist".into(),
                 None,
@@ -667,6 +677,7 @@ fn extract_symphonia_tags(path: &Path) -> (String, String, String, Option<u32>, 
                 "Unknown Artist".into(),
                 "Unknown Album".into(),
                 None,
+                None,
                 "Unknown Album Artist".into(),
                 None,
             );
@@ -681,6 +692,7 @@ fn extract_symphonia_tags(path: &Path) -> (String, String, String, Option<u32>, 
     let mut album_artist = "Unknown Album Artist".to_string();
     let mut album = "Unknown Album".to_string();
     let mut track_number = None;
+    let mut disc_number = None;
 
     if let Some(m) = meta {
         for tag in m.tags() {
@@ -691,6 +703,9 @@ fn extract_symphonia_tags(path: &Path) -> (String, String, String, Option<u32>, 
                 Some(StandardTagKey::Album) => album = tag.value.to_string(),
                 Some(StandardTagKey::TrackNumber) => {
                     track_number = tag.value.to_string().parse::<u32>().ok();
+                }
+                Some(StandardTagKey::DiscNumber) => {
+                    disc_number = tag.value.to_string().parse::<u32>().ok();
                 }
                 _ => {}
             }
@@ -720,7 +735,7 @@ fn extract_symphonia_tags(path: &Path) -> (String, String, String, Option<u32>, 
                 duration = Some((n_frames * tb.numer as u64) / tb.denom as u64);
             }
 
-    (title, artist, album, track_number, album_artist, duration)
+    (title, artist, album, track_number, disc_number, album_artist, duration)
 }
 
 #[derive(PartialEq)]
@@ -745,6 +760,7 @@ mod tests {
             artist: artist.to_string(),
             album: album.to_string(),
             track_number: Some(track_num),
+            disc_number: None,
             album_artist: artist.to_string(),
             duration: Some(180),
         }
@@ -1149,6 +1165,7 @@ mod tests {
             artist: "Frank Zappa".to_string(),
             album: "Over-nite sensation".to_string(),
             track_number: Some(5),
+            disc_number: None,
             album_artist: "Frank Zappa".to_string(),
             duration: Some(180),
         };
@@ -1159,6 +1176,7 @@ mod tests {
             artist: "Frank Zappa & The Mothers".to_string(),
             album: "Over-nite sensation".to_string(),
             track_number: Some(1),
+            disc_number: None,
             album_artist: "Frank Zappa & The Mothers".to_string(), // Different!
             duration: Some(180),
         };
@@ -1188,6 +1206,7 @@ mod tests {
             artist: "Artist".to_string(),
             album: "Album".to_string(),
             track_number: None, // Missing!
+            disc_number: None,
             album_artist: "Artist".to_string(),
             duration: Some(180),
         };
@@ -1198,6 +1217,7 @@ mod tests {
             artist: "Artist".to_string(),
             album: "Album".to_string(),
             track_number: None, // Missing!
+            disc_number: None,
             album_artist: "Artist".to_string(),
             duration: Some(180),
         };
@@ -1208,6 +1228,7 @@ mod tests {
             artist: "Artist".to_string(),
             album: "Album".to_string(),
             track_number: None, // Missing!
+            disc_number: None,
             album_artist: "Artist".to_string(),
             duration: Some(180),
         };

@@ -266,6 +266,7 @@ mod tests {
             artist: "Test Artist".to_string(),
             album: "Test Album".to_string(),
             track_number: Some(1),
+            disc_number: None,
             album_artist: "Test Artist".to_string(),
             duration: Some(duration),
         }
