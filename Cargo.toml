@@ -1,7 +1,7 @@
 [package]
 name = "shelltrax"
 version = "20251214.0.1"
-edition = "2021"
+edition = "2024"
 authors = ["Jake Goldsborough <github@pancakes.email>"]
 description = "A cmus-inspired terminal music player with Last.fm scrobbling"
 license = "MIT OR Apache-2.0"
