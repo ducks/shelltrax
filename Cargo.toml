@@ -1,7 +1,15 @@
 [package]
 name = "shelltrax"
 version = "20251214.0.0"
-edition = "2024"
+edition = "2021"
+authors = ["Jake Goldsborough <github@pancakes.email>"]
+description = "A cmus-inspired terminal music player with Last.fm scrobbling"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/ducks/shelltrax"
+homepage = "https://github.com/ducks/shelltrax"
+readme = "README.md"
+keywords = ["music", "player", "tui", "terminal", "audio"]
+categories = ["command-line-utilities", "multimedia::audio"]
 
 [dependencies]
 crossterm = "0.28.1"  # For handling terminal I/O
