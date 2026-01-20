@@ -37,7 +37,7 @@ abc123def456...
 
 Add these to your shell environment:
 
-export SCROB_SERVER_URL="https://scrob.example.com/graphql"
+export SCROB_SERVER_URL="https://scrob.example.com"
 export SCROB_TOKEN="abc123def456..."
 ```
 
@@ -47,14 +47,14 @@ The login utility will give you the exact commands to run. Choose your shell:
 
 **Bash/Zsh:**
 ```bash
-echo 'export SCROB_SERVER_URL="https://scrob.example.com/graphql"' >> ~/.bashrc
+echo 'export SCROB_SERVER_URL="https://scrob.example.com"' >> ~/.bashrc
 echo 'export SCROB_TOKEN="abc123def456..."' >> ~/.bashrc
 source ~/.bashrc
 ```
 
 **Nushell:**
 ```nushell
-echo '$env.SCROB_SERVER_URL = "https://scrob.example.com/graphql"' >> ~/.config/nushell/env.nu
+echo '$env.SCROB_SERVER_URL = "https://scrob.example.com"' >> ~/.config/nushell/env.nu
 echo '$env.SCROB_TOKEN = "abc123def456..."' >> ~/.config/nushell/env.nu
 ```
 
@@ -72,7 +72,7 @@ shelltrax
 
 Shelltrax uses these environment variables for scrobbling:
 
-- `SCROB_SERVER_URL` - The GraphQL endpoint URL (e.g., `https://scrob.example.com/graphql`)
+- `SCROB_SERVER_URL` - The base server URL (e.g., `https://scrob.example.com`)
 - `SCROB_TOKEN` - Your authentication token
 
 ## Pre-filling Server URL
@@ -136,7 +136,7 @@ curl -X POST https://scrob.example.com/signup \
 If you already have a token from another source, you can set it directly without using the login utility:
 
 ```bash
-export SCROB_SERVER_URL="https://scrob.example.com/graphql"
+export SCROB_SERVER_URL="https://scrob.example.com"
 export SCROB_TOKEN="your-existing-token"
 ```
 

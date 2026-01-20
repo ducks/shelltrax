@@ -36,10 +36,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         url.trim().to_string()
     };
 
-    // Remove /graphql suffix if present (login is REST, not GraphQL)
-    let base_url = server_url
-        .trim_end_matches('/')
-        .trim_end_matches("/graphql");
+    // Ensure URL doesn't have trailing slash
+    let base_url = server_url.trim_end_matches('/');
 
     // Get username
     print!("Username: ");
@@ -82,17 +80,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!();
         println!("Add these to your shell environment:");
         println!();
-        println!("export SCROB_SERVER_URL=\"{}/graphql\"", base_url);
+        println!("export SCROB_SERVER_URL=\"{}\"", base_url);
         println!("export SCROB_TOKEN=\"{}\"", login_response.token);
         println!();
         println!("Or add to your ~/.bashrc, ~/.zshrc, or Nushell env.nu:");
         println!();
         println!("# Bash/Zsh:");
-        println!("echo 'export SCROB_SERVER_URL=\"{}/graphql\"' >> ~/.bashrc", base_url);
+        println!("echo 'export SCROB_SERVER_URL=\"{}\"' >> ~/.bashrc", base_url);
         println!("echo 'export SCROB_TOKEN=\"{}\"' >> ~/.bashrc", login_response.token);
         println!();
         println!("# Nushell:");
-        println!("echo '$env.SCROB_SERVER_URL = \"{}/graphql\"' >> ~/.config/nushell/env.nu", base_url);
+        println!("echo '$env.SCROB_SERVER_URL = \"{}\"' >> ~/.config/nushell/env.nu", base_url);
         println!("echo '$env.SCROB_TOKEN = \"{}\"' >> ~/.config/nushell/env.nu", login_response.token);
         println!();
     } else {
