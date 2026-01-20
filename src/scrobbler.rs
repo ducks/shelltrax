@@ -64,7 +64,6 @@ impl Scrobbler {
             album_artist: None,
             duration: None,
             track_number: None,
-            player: Some("shelltrax".to_string()),
         };
 
         let client = Arc::clone(client);
@@ -105,7 +104,6 @@ impl Scrobbler {
             album_artist: None,
             duration,
             track_number: None,
-            player: Some("shelltrax".to_string()),
         };
 
         let client = Arc::clone(client);
