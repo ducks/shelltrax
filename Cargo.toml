@@ -27,3 +27,12 @@ simplelog = "0.12.1"
 log = "0.4"
 zip = "2.2"
 last-fm-rs = "20251214.0.2"
+reqwest = { version = "0.12", features = ["json"] }
+
+[[bin]]
+name = "shelltrax"
+path = "src/main.rs"
+
+[[bin]]
+name = "scrob-login"
+path = "src/bin/scrob-login.rs"
