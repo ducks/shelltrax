@@ -6,15 +6,14 @@ mod library;
 mod list;
 mod persistence;
 mod player;
-mod scrobbler;
 mod screens;
+mod scrobbler;
 mod theme;
 mod ui;
 
-use app::App;
 use actions::Action;
-use keybindings::{KeyMap, KeyBinding};
-
+use app::App;
+use keybindings::{KeyBinding, KeyMap};
 
 use crossterm::{
     event::{self, Event},
@@ -96,7 +95,10 @@ async fn main() -> Result<()> {
             }
         }
 
-        log::debug!("Drawing track: {:?}", app.current_track.as_ref().map(|t| &t.title));
+        log::debug!(
+            "Drawing track: {:?}",
+            app.current_track.as_ref().map(|t| &t.title)
+        );
         terminal.draw(|f| ui::draw_ui(f, &mut app))?;
 
         if event::poll(std::time::Duration::from_millis(200))?

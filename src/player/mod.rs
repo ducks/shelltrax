@@ -23,7 +23,6 @@ use symphonia::core::{
 
 use symphonia::default::{get_codecs, get_probe};
 
-
 use std::collections::VecDeque;
 
 pub struct Player {
@@ -138,7 +137,6 @@ impl Player {
         self.is_playing = true;
         self.current_path = Some(path.to_path_buf());
 
-
         // Spawn decoding thread
         let decode_buffer = Arc::clone(&sample_buf);
         let paused_flag_decoder = Arc::clone(&self.paused_flag);
@@ -243,13 +241,12 @@ impl Player {
                 if current_size > target_buffer_size {
                     std::thread::sleep(Duration::from_millis(10));
                 }
-                    }
+            }
 
             // Decoding is finished!
             log::debug!("Finished decoding, setting decoder_done = true");
             decoder_done_for_thread.store(true, Ordering::SeqCst);
         });
-
 
         self.handle = Some(handle);
         self.stream = Some(stream); // store the stream if needed for later stop/resume
@@ -280,9 +277,9 @@ impl Player {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::VecDeque;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::{Arc, Mutex};
-    use std::collections::VecDeque;
     use std::thread;
     use std::time::Duration;
 
@@ -330,12 +327,16 @@ mod tests {
         let final_size = buffer.lock().unwrap().len();
 
         // Assert that buffer didn't grow while paused
-        assert_eq!(size_when_paused, size_while_paused,
-            "Buffer should not grow while paused");
+        assert_eq!(
+            size_when_paused, size_while_paused,
+            "Buffer should not grow while paused"
+        );
 
         // Assert that buffer continued growing after unpause
-        assert!(final_size > size_while_paused,
-            "Buffer should grow after unpause");
+        assert!(
+            final_size > size_while_paused,
+            "Buffer should grow after unpause"
+        );
     }
 
     #[test]
