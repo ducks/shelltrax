@@ -4,10 +4,7 @@ use std::time::{Duration, Instant};
 
 use crate::browser::BrowserState;
 
-use crate::library::{
-    LibraryState,
-    LibraryTrack
-};
+use crate::library::{LibraryState, LibraryTrack};
 
 use crate::persistence;
 
@@ -246,11 +243,8 @@ impl App {
 
         // Update now playing
         if self.scrobbler.is_enabled() {
-            self.scrobbler.update_now_playing(
-                &track.artist,
-                &track.title,
-                Some(&track.album),
-            );
+            self.scrobbler
+                .update_now_playing(&track.artist, &track.title, Some(&track.album));
         }
     }
 }

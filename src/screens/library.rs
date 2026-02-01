@@ -58,7 +58,7 @@ pub fn draw(frame: &mut Frame, app: &mut App, area: Rect) {
         .highlight_style(
             Style::default()
                 .bg(app.theme.parse_color(&app.theme.background_selected))
-                .fg(app.theme.parse_color(&app.theme.text_selected))
+                .fg(app.theme.parse_color(&app.theme.text_selected)),
         );
 
     frame.render_stateful_widget(left_list, chunks[0], &mut left_state);
@@ -82,7 +82,7 @@ pub fn draw(frame: &mut Frame, app: &mut App, area: Rect) {
         .highlight_style(
             Style::default()
                 .bg(app.theme.parse_color(&app.theme.background_selected))
-                .fg(app.theme.parse_color(&app.theme.text_selected))
+                .fg(app.theme.parse_color(&app.theme.text_selected)),
         );
 
     if library.focus == LibraryFocus::Right {

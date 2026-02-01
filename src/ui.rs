@@ -3,10 +3,10 @@ use crate::{
     screens,
 };
 use ratatui::{
+    Frame,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::Style,
     widgets::{Block, Borders, Gauge, Paragraph},
-    Frame,
 };
 use std::time::{Duration, Instant};
 
@@ -27,11 +27,7 @@ pub fn draw_ui(frame: &mut Frame, app: &mut App) {
     render_footer(frame, app, layout[1]);
 }
 
-pub fn render_footer(
-    f: &mut Frame,
-    app: &App,
-    area: Rect,
-) {
+pub fn render_footer(f: &mut Frame, app: &App, area: Rect) {
     let block = Block::default().borders(Borders::TOP);
     let inner = block.inner(area);
     f.render_widget(block, area);
@@ -44,7 +40,9 @@ pub fn render_footer(
         return;
     }
 
-    let Some(start) = app.playback_start else { return };
+    let Some(start) = app.playback_start else {
+        return;
+    };
 
     let now = Instant::now();
     let elapsed = if let Some(paused_at) = app.paused_at {
@@ -89,21 +87,14 @@ pub fn render_footer(
             total_secs % 60
         )
     } else {
-        format!(
-            "{:02}:{:02} / --:--",
-            elapsed_secs / 60,
-            elapsed_secs % 60
-        )
+        format!("{:02}:{:02} / --:--", elapsed_secs / 60, elapsed_secs % 60)
     };
 
     let time_display = Paragraph::new(time_text);
     f.render_widget(time_display, layout[1]);
 
     if let Some(track) = &app.current_track {
-        let track_info = format!(
-            "{} - {} - {}",
-            track.artist, track.title, track.album
-        );
+        let track_info = format!("{} - {} - {}", track.artist, track.title, track.album);
 
         let autoplay_status = if app.autoplay_enabled { "on" } else { "off" };
         let status_info = format!(
@@ -115,17 +106,13 @@ pub fn render_footer(
         // Split the bottom line into left and right sections
         let info_layout = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Percentage(70),
-                Constraint::Percentage(30),
-            ])
+            .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
             .split(layout[2]);
 
         let track_display = Paragraph::new(track_info);
         f.render_widget(track_display, info_layout[0]);
 
-        let status_display = Paragraph::new(status_info)
-            .alignment(Alignment::Right);
+        let status_display = Paragraph::new(status_info).alignment(Alignment::Right);
         f.render_widget(status_display, info_layout[1]);
     }
 }

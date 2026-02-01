@@ -5,13 +5,9 @@ use ratatui::widgets::{ListItem, ListState};
 use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
 
-
 use id3::Tag as Id3Tag;
 use symphonia::core::{
-    formats::FormatOptions,
-    io::MediaSourceStream,
-    meta::MetadataOptions,
-    probe::Hint,
+    formats::FormatOptions, io::MediaSourceStream, meta::MetadataOptions, probe::Hint,
 };
 use symphonia::default::get_probe;
 
@@ -46,7 +42,7 @@ pub struct LibraryState {
     pub focus: LibraryFocus,
     pub track_index: usize,
     pub visible_rows: Vec<VisibleRow>,
-    pub tracks: Vec<LibraryTrack>
+    pub tracks: Vec<LibraryTrack>,
 }
 
 impl LibraryState {
@@ -68,16 +64,28 @@ impl LibraryState {
     pub fn add_tracks(&mut self, tracks: Vec<LibraryTrack>) {
         for track in tracks {
             // Extract artist and album directory paths
-            let album_dir = track.path.parent().and_then(|p| p.file_name()).map(|n| n.to_string_lossy().to_string());
-            let artist_dir = track.path.parent().and_then(|p| p.parent()).and_then(|p| p.file_name()).map(|n| n.to_string_lossy().to_string());
+            let album_dir = track
+                .path
+                .parent()
+                .and_then(|p| p.file_name())
+                .map(|n| n.to_string_lossy().to_string());
+            let artist_dir = track
+                .path
+                .parent()
+                .and_then(|p| p.parent())
+                .and_then(|p| p.file_name())
+                .map(|n| n.to_string_lossy().to_string());
 
             // Check if we have a proper Artist/Album directory structure
             // Fall back to tags if directory names look like generic folders
-            let use_directory_grouping = artist_dir.as_ref()
+            let use_directory_grouping = artist_dir
+                .as_ref()
                 .map(|name| {
                     // Don't use directory if it looks like a top-level folder
-                    !matches!(name.as_str(), "Music" | "Downloads" | "Documents" | "Desktop" | "media")
-                        && track.path.parent().and_then(|p| p.parent()).is_some()
+                    !matches!(
+                        name.as_str(),
+                        "Music" | "Downloads" | "Documents" | "Desktop" | "media"
+                    ) && track.path.parent().and_then(|p| p.parent()).is_some()
                 })
                 .unwrap_or(false);
 
@@ -85,7 +93,7 @@ impl LibraryState {
                 // Use directory-based grouping to prevent tag-based album splitting
                 (
                     artist_dir.unwrap_or_else(|| track.album_artist.clone()),
-                    album_dir.unwrap_or_else(|| track.album.clone())
+                    album_dir.unwrap_or_else(|| track.album.clone()),
                 )
             } else {
                 // Fall back to ID3 tags when directory structure doesn't match Artist/Album pattern
@@ -196,15 +204,17 @@ impl LibraryState {
         let visual_rows = Self::build_visible_rows(&self.artists);
         for (i, row) in visual_rows.iter().enumerate() {
             let matches = match row {
-                VisibleRow::Artist { artist_index } => {
-                    self.artists[*artist_index].name.to_lowercase().contains(&query_lower)
-                }
-                VisibleRow::Album { artist_index, album_index } => {
-                    self.artists[*artist_index].albums[*album_index]
-                        .name
-                        .to_lowercase()
-                        .contains(&query_lower)
-                }
+                VisibleRow::Artist { artist_index } => self.artists[*artist_index]
+                    .name
+                    .to_lowercase()
+                    .contains(&query_lower),
+                VisibleRow::Album {
+                    artist_index,
+                    album_index,
+                } => self.artists[*artist_index].albums[*album_index]
+                    .name
+                    .to_lowercase()
+                    .contains(&query_lower),
             };
 
             if matches {
@@ -218,10 +228,11 @@ impl LibraryState {
 
     pub fn toggle_expanded(&mut self) {
         if let Some(LibrarySelection::Artist { artist_index }) = self.selection
-            && let Some(artist) = self.artists.get_mut(artist_index) {
-                artist.expanded = !artist.expanded;
-                self.rebuild_visible_rows();
-            }
+            && let Some(artist) = self.artists.get_mut(artist_index)
+        {
+            artist.expanded = !artist.expanded;
+            self.rebuild_visible_rows();
+        }
     }
 
     pub fn delete_selected(&mut self) {
@@ -238,7 +249,7 @@ impl LibraryState {
                         // If we deleted the last artist, select the new last one
                         let new_index = self.artists.len().saturating_sub(1);
                         self.selection = Some(LibrarySelection::Artist {
-                            artist_index: new_index
+                            artist_index: new_index,
                         });
                     }
                     // Otherwise selection stays at same index (next artist moved into place)
@@ -247,45 +258,47 @@ impl LibraryState {
                     persistence::save_library(&self.artists).ok();
                 }
             }
-            Some(LibrarySelection::Album { artist_index, album_index }) => {
+            Some(LibrarySelection::Album {
+                artist_index,
+                album_index,
+            }) => {
                 // Delete specific album
                 if let Some(artist) = self.artists.get_mut(artist_index)
-                    && album_index < artist.albums.len() {
-                        artist.albums.remove(album_index);
+                    && album_index < artist.albums.len()
+                {
+                    artist.albums.remove(album_index);
 
-                        // If artist has no more albums, delete the artist too
-                        if artist.albums.is_empty() {
-                            self.artists.remove(artist_index);
+                    // If artist has no more albums, delete the artist too
+                    if artist.albums.is_empty() {
+                        self.artists.remove(artist_index);
 
-                            // Adjust selection
-                            if self.artists.is_empty() {
-                                self.selection = None;
-                            } else if artist_index >= self.artists.len() {
-                                let new_index = self.artists.len().saturating_sub(1);
-                                self.selection = Some(LibrarySelection::Artist {
-                                    artist_index: new_index
-                                });
-                            } else {
-                                self.selection = Some(LibrarySelection::Artist {
-                                    artist_index
-                                });
-                            }
+                        // Adjust selection
+                        if self.artists.is_empty() {
+                            self.selection = None;
+                        } else if artist_index >= self.artists.len() {
+                            let new_index = self.artists.len().saturating_sub(1);
+                            self.selection = Some(LibrarySelection::Artist {
+                                artist_index: new_index,
+                            });
                         } else {
-                            // Artist still has albums, adjust album selection
-                            if album_index >= artist.albums.len() {
-                                // Deleted last album, select new last album
-                                let new_album_index = artist.albums.len().saturating_sub(1);
-                                self.selection = Some(LibrarySelection::Album {
-                                    artist_index,
-                                    album_index: new_album_index,
-                                });
-                            }
-                            // Otherwise selection stays at same index
+                            self.selection = Some(LibrarySelection::Artist { artist_index });
                         }
-
-                        self.rebuild_visible_rows();
-                        persistence::save_library(&self.artists).ok();
+                    } else {
+                        // Artist still has albums, adjust album selection
+                        if album_index >= artist.albums.len() {
+                            // Deleted last album, select new last album
+                            let new_album_index = artist.albums.len().saturating_sub(1);
+                            self.selection = Some(LibrarySelection::Album {
+                                artist_index,
+                                album_index: new_album_index,
+                            });
+                        }
+                        // Otherwise selection stays at same index
                     }
+
+                    self.rebuild_visible_rows();
+                    persistence::save_library(&self.artists).ok();
+                }
             }
             None => {
                 // Nothing selected, do nothing
@@ -381,11 +394,11 @@ impl LibraryState {
                 .get(artist_index)
                 .map(|a| a.albums.iter().flat_map(|alb| alb.tracks.clone()).collect())
                 .unwrap_or_default(),
-                Some(LibrarySelection::Album {
-                    artist_index,
-                    album_index,
-                }) => self
-            .artists
+            Some(LibrarySelection::Album {
+                artist_index,
+                album_index,
+            }) => self
+                .artists
                 .get(artist_index)
                 .and_then(|a| a.albums.get(album_index))
                 .map(|alb| alb.tracks.clone())
@@ -451,7 +464,6 @@ impl LibraryState {
         (items, playable_indices)
     }
 
-
     pub fn select_track_by_path(&mut self, path: &Path) {
         let tracks = self.visible_tracks();
         if let Some(i) = tracks.iter().position(|t| t.path == path) {
@@ -506,9 +518,7 @@ pub fn scan_path_for_tracks(path: &Path) -> Vec<LibraryTrack> {
         .into_iter()
         .filter_entry(|e| {
             // Skip __MACOSX directories
-            !e.path()
-                .components()
-                .any(|c| c.as_os_str() == "__MACOSX")
+            !e.path().components().any(|c| c.as_os_str() == "__MACOSX")
         })
         .filter_map(Result::ok)
         .filter(|e| e.path().is_file())
@@ -517,20 +527,22 @@ pub fn scan_path_for_tracks(path: &Path) -> Vec<LibraryTrack> {
 
         // Skip macOS metadata files (._filename)
         if let Some(filename) = path.file_name().and_then(|n| n.to_str())
-            && filename.starts_with("._") {
-                continue;
-            }
+            && filename.starts_with("._")
+        {
+            continue;
+        }
 
         let ext = path
             .extension()
             .and_then(|ext| ext.to_str())
             .map(|s| s.to_ascii_lowercase());
 
-        let (title, artist, album, track_number, disc_number, album_artist, duration) = match ext.as_deref() {
-            Some("mp3") => extract_mp3_tags(path),
-            Some("flac") => extract_symphonia_tags(path),
-            _ => continue,
-        };
+        let (title, artist, album, track_number, disc_number, album_artist, duration) =
+            match ext.as_deref() {
+                Some("mp3") => extract_mp3_tags(path),
+                Some("flac") => extract_symphonia_tags(path),
+                _ => continue,
+            };
 
         tracks.push(LibraryTrack {
             path: path.to_path_buf(),
@@ -553,23 +565,40 @@ fn extract_track_number_from_filename(path: &Path) -> Option<u32> {
     let filename = path.file_stem()?.to_str()?;
 
     // Try pattern: "... - 01 - ..." or "01 - ..."
-    if let Some(parts) = filename.split(" - ").nth(1).or_else(|| filename.split(" - ").next())
+    if let Some(parts) = filename
+        .split(" - ")
+        .nth(1)
+        .or_else(|| filename.split(" - ").next())
         && let Ok(num) = parts.trim().parse::<u32>()
-            && num > 0 && num < 999 {
-                return Some(num);
-            }
+        && num > 0
+        && num < 999
+    {
+        return Some(num);
+    }
 
     // Try pattern: "01. Title" or "01 Title"
     let first_token = filename.split_whitespace().next()?;
     if let Ok(num) = first_token.trim_end_matches('.').parse::<u32>()
-        && num > 0 && num < 999 {
-            return Some(num);
-        }
+        && num > 0
+        && num < 999
+    {
+        return Some(num);
+    }
 
     None
 }
 
-fn extract_mp3_tags(path: &Path) -> (String, String, String, Option<u32>, Option<u32>, String, Option<u64>) {
+fn extract_mp3_tags(
+    path: &Path,
+) -> (
+    String,
+    String,
+    String,
+    Option<u32>,
+    Option<u32>,
+    String,
+    Option<u64>,
+) {
     // Use id3 for metadata (it handles ID3 tags better)
     let tag = Id3Tag::read_from_path(path).ok();
 
@@ -606,13 +635,20 @@ fn extract_mp3_tags(path: &Path) -> (String, String, String, Option<u32>, Option
         .and_then(|t| t.track())
         .or_else(|| extract_track_number_from_filename(path));
 
-    let disc_number = tag
-        .and_then(|t| t.disc());
+    let disc_number = tag.and_then(|t| t.disc());
 
     // Use Symphonia for duration
     let duration = extract_duration_symphonia(path);
 
-    (title, artist, album, track_number, disc_number, album_artist, duration)
+    (
+        title,
+        artist,
+        album,
+        track_number,
+        disc_number,
+        album_artist,
+        duration,
+    )
 }
 
 fn extract_duration_symphonia(path: &Path) -> Option<u64> {
@@ -630,14 +666,25 @@ fn extract_duration_symphonia(path: &Path) -> Option<u64> {
 
     if let Some(track) = probed.format.default_track()
         && let Some(tb) = track.codec_params.time_base
-            && let Some(n_frames) = track.codec_params.n_frames {
-                return Some((n_frames * tb.numer as u64) / tb.denom as u64);
-            }
+        && let Some(n_frames) = track.codec_params.n_frames
+    {
+        return Some((n_frames * tb.numer as u64) / tb.denom as u64);
+    }
 
     None
 }
 
-fn extract_symphonia_tags(path: &Path) -> (String, String, String, Option<u32>, Option<u32>, String, Option<u64>) {
+fn extract_symphonia_tags(
+    path: &Path,
+) -> (
+    String,
+    String,
+    String,
+    Option<u32>,
+    Option<u32>,
+    String,
+    Option<u64>,
+) {
     use symphonia::core::meta::StandardTagKey;
 
     // Fallback to filename if title tag is missing
@@ -731,11 +778,20 @@ fn extract_symphonia_tags(path: &Path) -> (String, String, String, Option<u32>, 
 
     if let Some(track) = probed.format.default_track()
         && let Some(tb) = track.codec_params.time_base
-            && let Some(n_frames) = track.codec_params.n_frames {
-                duration = Some((n_frames * tb.numer as u64) / tb.denom as u64);
-            }
+        && let Some(n_frames) = track.codec_params.n_frames
+    {
+        duration = Some((n_frames * tb.numer as u64) / tb.denom as u64);
+    }
 
-    (title, artist, album, track_number, disc_number, album_artist, duration)
+    (
+        title,
+        artist,
+        album,
+        track_number,
+        disc_number,
+        album_artist,
+        duration,
+    )
 }
 
 #[derive(PartialEq)]
@@ -748,12 +804,7 @@ pub enum LibraryFocus {
 mod tests {
     use super::*;
 
-    fn create_test_track(
-        artist: &str,
-        album: &str,
-        title: &str,
-        track_num: u32,
-    ) -> LibraryTrack {
+    fn create_test_track(artist: &str, album: &str, title: &str, track_num: u32) -> LibraryTrack {
         LibraryTrack {
             path: PathBuf::from(format!("/test/{}/{}/{}.mp3", artist, album, title)),
             title: title.to_string(),
@@ -1019,7 +1070,12 @@ mod tests {
         // Create two artists: one with "Wesley" in name, another with track "Wesley's Theory"
         lib.add_tracks(vec![
             create_test_track("Wesley Snipes Band", "Album A", "Song 1", 1),
-            create_test_track("Kendrick Lamar", "To Pimp A Butterfly", "Wesley's Theory", 1),
+            create_test_track(
+                "Kendrick Lamar",
+                "To Pimp A Butterfly",
+                "Wesley's Theory",
+                1,
+            ),
             create_test_track("Kendrick Lamar", "To Pimp A Butterfly", "King Kunta", 2),
         ]);
 
@@ -1029,7 +1085,11 @@ mod tests {
         lib.rebuild_visible_rows();
 
         // Focus on Kendrick Lamar (artist index 1 after alphabetical sort)
-        let kendrick_index = lib.artists.iter().position(|a| a.name == "Kendrick Lamar").unwrap();
+        let kendrick_index = lib
+            .artists
+            .iter()
+            .position(|a| a.name == "Kendrick Lamar")
+            .unwrap();
         lib.selection = Some(LibrarySelection::Album {
             artist_index: kendrick_index,
             album_index: 0,
@@ -1041,10 +1101,13 @@ mod tests {
 
         // Should find the track "Wesley's Theory" (index 0), NOT jump to "Wesley Snipes Band"
         assert_eq!(lib.track_index, 0);
-        assert_eq!(lib.selection, Some(LibrarySelection::Album {
-            artist_index: kendrick_index,
-            album_index: 0,
-        }));
+        assert_eq!(
+            lib.selection,
+            Some(LibrarySelection::Album {
+                artist_index: kendrick_index,
+                album_index: 0,
+            })
+        );
     }
 
     #[test]
@@ -1053,7 +1116,12 @@ mod tests {
 
         lib.add_tracks(vec![
             create_test_track("Wesley Snipes Band", "Album A", "Song 1", 1),
-            create_test_track("Kendrick Lamar", "To Pimp A Butterfly", "Wesley's Theory", 1),
+            create_test_track(
+                "Kendrick Lamar",
+                "To Pimp A Butterfly",
+                "Wesley's Theory",
+                1,
+            ),
         ]);
 
         lib.rebuild_visible_rows();
@@ -1066,10 +1134,17 @@ mod tests {
         lib.jump_to_match("wesley");
 
         // Should find "Wesley Snipes Band" artist since we're on left pane
-        let wesley_index = lib.artists.iter().position(|a| a.name == "Wesley Snipes Band").unwrap();
-        assert_eq!(lib.selection, Some(LibrarySelection::Artist {
-            artist_index: wesley_index
-        }));
+        let wesley_index = lib
+            .artists
+            .iter()
+            .position(|a| a.name == "Wesley Snipes Band")
+            .unwrap();
+        assert_eq!(
+            lib.selection,
+            Some(LibrarySelection::Artist {
+                artist_index: wesley_index
+            })
+        );
     }
 
     #[test]
@@ -1086,10 +1161,17 @@ mod tests {
         // Search with space should match "Pink Floyd" not "Pinkfloyd"
         lib.jump_to_match("pink floyd");
 
-        let pink_floyd_index = lib.artists.iter().position(|a| a.name == "Pink Floyd").unwrap();
-        assert_eq!(lib.selection, Some(LibrarySelection::Artist {
-            artist_index: pink_floyd_index
-        }));
+        let pink_floyd_index = lib
+            .artists
+            .iter()
+            .position(|a| a.name == "Pink Floyd")
+            .unwrap();
+        assert_eq!(
+            lib.selection,
+            Some(LibrarySelection::Artist {
+                artist_index: pink_floyd_index
+            })
+        );
     }
 
     #[test]
@@ -1116,10 +1198,13 @@ mod tests {
         lib.jump_to_match("beatles");
 
         // Should stay on Beatles artist (or jump to it if searching works correctly)
-        assert_eq!(lib.selection, Some(LibrarySelection::Album {
-            artist_index: 0,
-            album_index: 0,
-        }));
+        assert_eq!(
+            lib.selection,
+            Some(LibrarySelection::Album {
+                artist_index: 0,
+                album_index: 0,
+            })
+        );
     }
 
     #[test]
@@ -1160,7 +1245,9 @@ mod tests {
         // Simulate tracks from same directory but different album_artist tags
         // Like: Frank Zappa/(1973) Over-nite sensation/05 Dinah-moe humm.mp3
         let track1 = LibraryTrack {
-            path: PathBuf::from("/Music/Frank Zappa/(1973) Over-nite sensation/05 Dinah-moe humm.mp3"),
+            path: PathBuf::from(
+                "/Music/Frank Zappa/(1973) Over-nite sensation/05 Dinah-moe humm.mp3",
+            ),
             title: "Dinah-moe humm".to_string(),
             artist: "Frank Zappa".to_string(),
             album: "Over-nite sensation".to_string(),
@@ -1171,7 +1258,9 @@ mod tests {
         };
 
         let track2 = LibraryTrack {
-            path: PathBuf::from("/Music/Frank Zappa/(1973) Over-nite sensation/01 Camarillo brillo.mp3"),
+            path: PathBuf::from(
+                "/Music/Frank Zappa/(1973) Over-nite sensation/01 Camarillo brillo.mp3",
+            ),
             title: "Camarillo brillo".to_string(),
             artist: "Frank Zappa & The Mothers".to_string(),
             album: "Over-nite sensation".to_string(),
@@ -1255,14 +1344,20 @@ mod tests {
         let dot_underscore = PathBuf::from("/Music/Artist/Album/._track.mp3");
 
         // Check that __MACOSX is in the path
-        assert!(macosx_path.components().any(|c| c.as_os_str() == "__MACOSX"));
+        assert!(
+            macosx_path
+                .components()
+                .any(|c| c.as_os_str() == "__MACOSX")
+        );
 
         // Check that filename starts with ._
-        assert!(dot_underscore
-            .file_name()
-            .and_then(|n| n.to_str())
-            .map(|s| s.starts_with("._"))
-            .unwrap_or(false));
+        assert!(
+            dot_underscore
+                .file_name()
+                .and_then(|n| n.to_str())
+                .map(|s| s.starts_with("._"))
+                .unwrap_or(false)
+        );
     }
 
     #[test]
