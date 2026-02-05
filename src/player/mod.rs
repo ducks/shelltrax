@@ -1,11 +1,9 @@
-use crate::player::thread::JoinHandle;
-
 use std::{
     fs::File,
     path::{Path, PathBuf},
     sync::atomic::{AtomicBool, Ordering},
     sync::{Arc, Mutex},
-    thread,
+    thread::{self, JoinHandle},
     time::Duration,
 };
 
