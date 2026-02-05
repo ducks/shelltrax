@@ -7,6 +7,7 @@ command_wrapper = "nix-shell --run '{cmd}'"
 enabled = true
 command = "claude"
 args = []
+timeout = 300
 
 [backends.codex]
 enabled = true
