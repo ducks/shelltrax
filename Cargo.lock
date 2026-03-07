@@ -2038,7 +2038,7 @@ dependencies = [
 
 [[package]]
 name = "shelltrax"
-version = "20260307.0.0"
+version = "20260307.0.1"
 dependencies = [
  "anyhow",
  "cpal",
