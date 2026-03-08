@@ -14,7 +14,10 @@ pub struct BrowserState {
 
 impl BrowserState {
     pub fn new() -> Self {
-        let current_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        let current_dir = std::env::var("HOME")
+            .ok()
+            .map(PathBuf::from)
+            .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
         let entries = read_dir_items(&current_dir);
 
         Self {
