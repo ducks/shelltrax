@@ -215,7 +215,9 @@ impl App {
 
         {
             let mut player = self.player.lock().unwrap();
-            player.play(&next_path);
+            if let Err(e) = player.play(&next_path) {
+                log::error!("Playback failed for {:?}: {e}", next_path);
+            }
         }
     }
 

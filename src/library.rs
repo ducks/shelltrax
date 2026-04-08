@@ -237,26 +237,25 @@ impl LibraryState {
 
     pub fn delete_selected(&mut self) {
         match self.selection {
-            Some(LibrarySelection::Artist { artist_index }) => {
-                // Delete entire artist
-                if artist_index < self.artists.len() {
-                    self.artists.remove(artist_index);
+            Some(LibrarySelection::Artist { artist_index })
+                if artist_index < self.artists.len() =>
+            {
+                self.artists.remove(artist_index);
 
-                    // Adjust selection after deletion
-                    if self.artists.is_empty() {
-                        self.selection = None;
-                    } else if artist_index >= self.artists.len() {
-                        // If we deleted the last artist, select the new last one
-                        let new_index = self.artists.len().saturating_sub(1);
-                        self.selection = Some(LibrarySelection::Artist {
-                            artist_index: new_index,
-                        });
-                    }
-                    // Otherwise selection stays at same index (next artist moved into place)
-
-                    self.rebuild_visible_rows();
-                    persistence::save_library(&self.artists).ok();
+                // Adjust selection after deletion
+                if self.artists.is_empty() {
+                    self.selection = None;
+                } else if artist_index >= self.artists.len() {
+                    // If we deleted the last artist, select the new last one
+                    let new_index = self.artists.len().saturating_sub(1);
+                    self.selection = Some(LibrarySelection::Artist {
+                        artist_index: new_index,
+                    });
                 }
+                // Otherwise selection stays at same index (next artist moved into place)
+
+                self.rebuild_visible_rows();
+                persistence::save_library(&self.artists).ok();
             }
             Some(LibrarySelection::Album {
                 artist_index,
@@ -300,9 +299,7 @@ impl LibraryState {
                     persistence::save_library(&self.artists).ok();
                 }
             }
-            None => {
-                // Nothing selected, do nothing
-            }
+            _ => {}
         }
     }
 

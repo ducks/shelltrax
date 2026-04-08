@@ -1,5 +1,5 @@
-use std::io::{self, Write};
 use serde::{Deserialize, Serialize};
+use std::io::{self, Write};
 
 #[derive(Debug, Serialize)]
 struct LoginRequest {
@@ -73,7 +73,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("✓ Login successful!");
         println!();
         println!("Username: {}", login_response.username);
-        println!("Admin: {}", if login_response.is_admin { "yes" } else { "no" });
+        println!(
+            "Admin: {}",
+            if login_response.is_admin { "yes" } else { "no" }
+        );
         println!();
         println!("Your token:");
         println!("{}", login_response.token);
@@ -86,12 +89,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Or add to your ~/.bashrc, ~/.zshrc, or Nushell env.nu:");
         println!();
         println!("# Bash/Zsh:");
-        println!("echo 'export SCROB_SERVER_URL=\"{}\"' >> ~/.bashrc", base_url);
-        println!("echo 'export SCROB_TOKEN=\"{}\"' >> ~/.bashrc", login_response.token);
+        println!(
+            "echo 'export SCROB_SERVER_URL=\"{}\"' >> ~/.bashrc",
+            base_url
+        );
+        println!(
+            "echo 'export SCROB_TOKEN=\"{}\"' >> ~/.bashrc",
+            login_response.token
+        );
         println!();
         println!("# Nushell:");
-        println!("echo '$env.SCROB_SERVER_URL = \"{}\"' >> ~/.config/nushell/env.nu", base_url);
-        println!("echo '$env.SCROB_TOKEN = \"{}\"' >> ~/.config/nushell/env.nu", login_response.token);
+        println!(
+            "echo '$env.SCROB_SERVER_URL = \"{}\"' >> ~/.config/nushell/env.nu",
+            base_url
+        );
+        println!(
+            "echo '$env.SCROB_TOKEN = \"{}\"' >> ~/.config/nushell/env.nu",
+            login_response.token
+        );
         println!();
     } else {
         let status = response.status();

@@ -83,18 +83,14 @@ impl Action {
             Action::CycleRepeat => {
                 app.repeat_mode = app.repeat_mode.next();
             }
-            Action::ToggleExpanded => {
-                if app.screen == AppScreen::Library {
-                    app.library_mut().toggle_expanded();
-                }
+            Action::ToggleExpanded if app.screen == AppScreen::Library => {
+                app.library_mut().toggle_expanded();
             }
             Action::SwitchFocus => {
                 app.library_mut().tab_focus();
             }
-            Action::GoUpDirectory => {
-                if app.screen == AppScreen::Browser {
-                    app.browser.go_up();
-                }
+            Action::GoUpDirectory if app.screen == AppScreen::Browser => {
+                app.browser.go_up();
             }
             Action::GoToTop => match app.screen {
                 AppScreen::Browser => app.browser.go_to_top(),
@@ -130,11 +126,9 @@ impl Action {
                     lib.add_tracks(tracks);
                 }
             }
-            Action::DeleteFromLibrary => {
-                if app.screen == AppScreen::Library {
-                    let mut lib = app.library_mut();
-                    lib.delete_selected();
-                }
+            Action::DeleteFromLibrary if app.screen == AppScreen::Library => {
+                let mut lib = app.library_mut();
+                lib.delete_selected();
             }
             Action::PlaySelected => {
                 if app.screen == AppScreen::Browser {
@@ -166,7 +160,10 @@ impl Action {
                             let was_paused = plyr.paused_flag.load(Ordering::SeqCst);
 
                             plyr.stop();
-                            plyr.play(&track.path);
+                            if let Err(e) = plyr.play(&track.path) {
+                                log::error!("Playback failed for {:?}: {e}", track.path);
+                                return;
+                            }
 
                             if was_paused {
                                 should_unpause = true;
