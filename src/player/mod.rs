@@ -50,13 +50,14 @@ impl Player {
         }
     }
 
-    pub fn play(&mut self, path: &Path) {
+    pub fn play(&mut self, path: &Path) -> anyhow::Result<()> {
         self.stop(); // Stop any current playback
 
         self.autoplay_trigger.store(false, Ordering::SeqCst);
         self.is_decoder_done.store(false, Ordering::SeqCst);
 
-        let file = File::open(path).expect("Failed to open file");
+        let file =
+            File::open(path).map_err(|e| anyhow::anyhow!("Failed to open {:?}: {}", path, e))?;
         let mss = MediaSourceStream::new(Box::new(file), Default::default());
 
         let probed = get_probe()
@@ -66,7 +67,7 @@ impl Player {
                 &FormatOptions::default(),
                 &MetadataOptions::default(),
             )
-            .expect("Unsupported format");
+            .map_err(|e| anyhow::anyhow!("Unsupported format {:?}: {}", path, e))?;
 
         let mut format = probed.format;
 
@@ -74,20 +75,20 @@ impl Player {
             .tracks()
             .iter()
             .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
-            .expect("No supported audio track found");
+            .ok_or_else(|| anyhow::anyhow!("No supported audio track in {:?}", path))?;
 
         let mut decoder = get_codecs()
             .make(&track.codec_params, &DecoderOptions::default())
-            .expect("Unsupported codec");
+            .map_err(|e| anyhow::anyhow!("Unsupported codec in {:?}: {}", path, e))?;
 
         let sample_rate = track.codec_params.sample_rate.unwrap_or(44100);
-        let channels = track.codec_params.channels.unwrap().count();
+        let channels = track.codec_params.channels.map(|c| c.count()).unwrap_or(2);
 
         // Create CPAL output stream
         let host = cpal::default_host();
         let device = host
             .default_output_device()
-            .expect("No output device available");
+            .ok_or_else(|| anyhow::anyhow!("No audio output device available"))?;
 
         let config = cpal::StreamConfig {
             channels: channels as u16,
@@ -118,7 +119,7 @@ impl Player {
                     }
 
                     for sample in data.iter_mut() {
-                        *sample = buf.pop_front().unwrap_or(0.0); // Pop from front = correct order
+                        *sample = buf.pop_front().unwrap_or(0.0);
                     }
 
                     if buf.is_empty() && decoder_done.load(Ordering::SeqCst) {
@@ -128,9 +129,11 @@ impl Player {
                 move |err| log::error!("CPAL stream error: {err}"),
                 None,
             )
-            .expect("Failed to build output stream");
+            .map_err(|e| anyhow::anyhow!("Failed to build output stream: {}", e))?;
 
-        stream.play().expect("Failed to play stream");
+        stream
+            .play()
+            .map_err(|e| anyhow::anyhow!("Failed to start playback: {}", e))?;
 
         self.is_playing = true;
         self.current_path = Some(path.to_path_buf());
@@ -247,8 +250,10 @@ impl Player {
         });
 
         self.handle = Some(handle);
-        self.stream = Some(stream); // store the stream if needed for later stop/resume
+        self.stream = Some(stream);
         self.buffer = buffer;
+
+        Ok(())
     }
 
     pub fn stop(&mut self) {

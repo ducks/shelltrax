@@ -69,7 +69,10 @@ async fn main() -> Result<()> {
                     if let Some(path) = current_path {
                         {
                             let mut plyr = app.player.lock().unwrap();
-                            plyr.play(&path);
+                            if let Err(e) = plyr.play(&path) {
+                                log::error!("Playback failed: {e}");
+                                continue;
+                            }
                         }
 
                         let track = {
