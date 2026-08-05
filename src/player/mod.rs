@@ -274,6 +274,24 @@ impl Player {
     pub fn set_paused(&mut self, paused: bool) {
         self.is_paused = paused;
         self.paused_flag.store(paused, Ordering::SeqCst);
+
+        // Pause the OS-level CPAL stream too, not just the flag. Without this
+        // the stream stays alive and keeps feeding silence to the device, so
+        // the audio sink reports RUNNING / uncorked even while paused — which
+        // blocks power management (e.g. screen-idle inhibitors that key off
+        // cork state). Pausing the stream lets the device go idle. The
+        // paused_flag still gates the callback/decoder for a clean resume.
+        if let Some(stream) = &self.stream {
+            // pause() and play() return distinct error types, so handle each
+            // branch separately rather than sharing one Result binding.
+            if paused {
+                if let Err(err) = stream.pause() {
+                    log::error!("Failed to pause CPAL stream: {err}");
+                }
+            } else if let Err(err) = stream.play() {
+                log::error!("Failed to resume CPAL stream: {err}");
+            }
+        }
     }
 }
 
