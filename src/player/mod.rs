@@ -23,6 +23,8 @@ use symphonia::default::{get_codecs, get_probe};
 
 use std::collections::VecDeque;
 
+use anyhow::{Context, Result, anyhow};
+
 pub struct Player {
     pub current_path: Option<PathBuf>,
     pub is_playing: bool,
@@ -50,14 +52,14 @@ impl Player {
         }
     }
 
-    pub fn play(&mut self, path: &Path) -> anyhow::Result<()> {
+    pub fn play(&mut self, path: &Path) -> Result<()> {
         self.stop(); // Stop any current playback
 
         self.autoplay_trigger.store(false, Ordering::SeqCst);
         self.is_decoder_done.store(false, Ordering::SeqCst);
 
-        let file =
-            File::open(path).map_err(|e| anyhow::anyhow!("Failed to open {:?}: {}", path, e))?;
+        let file = File::open(path)
+            .with_context(|| format!("failed to open audio file {}", path.display()))?;
         let mss = MediaSourceStream::new(Box::new(file), Default::default());
 
         let probed = get_probe()
@@ -67,7 +69,7 @@ impl Player {
                 &FormatOptions::default(),
                 &MetadataOptions::default(),
             )
-            .map_err(|e| anyhow::anyhow!("Unsupported format {:?}: {}", path, e))?;
+            .with_context(|| format!("unsupported audio format in {}", path.display()))?;
 
         let mut format = probed.format;
 
@@ -75,11 +77,11 @@ impl Player {
             .tracks()
             .iter()
             .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
-            .ok_or_else(|| anyhow::anyhow!("No supported audio track in {:?}", path))?;
+            .ok_or_else(|| anyhow!("no supported audio track found in {}", path.display()))?;
 
         let mut decoder = get_codecs()
             .make(&track.codec_params, &DecoderOptions::default())
-            .map_err(|e| anyhow::anyhow!("Unsupported codec in {:?}: {}", path, e))?;
+            .with_context(|| format!("unsupported audio codec in {}", path.display()))?;
 
         let sample_rate = track.codec_params.sample_rate.unwrap_or(44100);
         let channels = track.codec_params.channels.map(|c| c.count()).unwrap_or(2);
@@ -88,7 +90,7 @@ impl Player {
         let host = cpal::default_host();
         let device = host
             .default_output_device()
-            .ok_or_else(|| anyhow::anyhow!("No audio output device available"))?;
+            .ok_or_else(|| anyhow!("no audio output device available"))?;
 
         let config = cpal::StreamConfig {
             channels: channels as u16,
@@ -129,11 +131,11 @@ impl Player {
                 move |err| log::error!("CPAL stream error: {err}"),
                 None,
             )
-            .map_err(|e| anyhow::anyhow!("Failed to build output stream: {}", e))?;
+            .context("failed to build audio output stream")?;
 
         stream
             .play()
-            .map_err(|e| anyhow::anyhow!("Failed to start playback: {}", e))?;
+            .context("failed to start audio output stream")?;
 
         self.is_playing = true;
         self.current_path = Some(path.to_path_buf());
@@ -252,7 +254,6 @@ impl Player {
         self.handle = Some(handle);
         self.stream = Some(stream);
         self.buffer = buffer;
-
         Ok(())
     }
 
@@ -374,5 +375,17 @@ mod tests {
         player.set_paused(false);
         assert!(!player.is_paused);
         assert!(!player.paused_flag.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn missing_audio_file_returns_error_without_loading_player() {
+        let mut player = Player::new();
+        let path = Path::new("/definitely/not/a/shelltrax-track.mp3");
+
+        let error = player.play(path).unwrap_err();
+
+        assert!(error.to_string().contains("failed to open audio file"));
+        assert!(!player.is_loaded());
+        assert!(!player.is_playing);
     }
 }

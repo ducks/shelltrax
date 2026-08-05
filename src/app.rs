@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -68,6 +69,9 @@ pub struct App {
     pub search_active: bool,
     pub search_query: String,
 
+    /// Most recent recoverable error to show in the footer.
+    pub status_message: Option<String>,
+
     /// Scrobbler
     pub scrobbler: Scrobbler,
 
@@ -104,6 +108,7 @@ impl App {
             paused_duration: Duration::from_secs(0),
             search_active: false,
             search_query: String::new(),
+            status_message: None,
             scrobbler,
             scrobbled_current: false,
         }
@@ -201,6 +206,10 @@ impl App {
             lib.select_track_by_path(&next_path);
         }
 
+        if !self.play_path(&next_path) {
+            return;
+        }
+
         if let Some(track) = {
             let lib = self.library.lock().unwrap();
             lib.track_by_path(&next_path).cloned()
@@ -212,11 +221,25 @@ impl App {
             self.paused_duration = Duration::ZERO;
             self.paused_at = None;
         }
+    }
 
-        {
-            let mut player = self.player.lock().unwrap();
-            if let Err(e) = player.play(&next_path) {
-                log::error!("Playback failed for {:?}: {e}", next_path);
+    pub fn play_path(&mut self, path: &Path) -> bool {
+        let result = self.player.lock().unwrap().play(path);
+        match result {
+            Ok(()) => {
+                self.status_message = None;
+                true
+            }
+            Err(error) => {
+                let message = format!("Could not play {}: {error:#}", path.display());
+                log::error!("{message}");
+                self.current_track = None;
+                self.playback_start = None;
+                self.playback_duration = 0;
+                self.paused_at = None;
+                self.paused_duration = Duration::ZERO;
+                self.status_message = Some(message);
+                false
             }
         }
     }
@@ -332,5 +355,23 @@ mod tests {
         app.toggle_pause();
         assert!(!app.player_mut().is_paused);
         assert!(app.paused_at.is_none());
+    }
+
+    #[test]
+    fn playback_error_is_exposed_without_panicking() {
+        let mut app = App::new();
+        app.current_track = Some(create_test_track("old", 180));
+        app.playback_start = Some(Instant::now());
+
+        let started = app.play_path(Path::new("/definitely/not/a/shelltrax-track.mp3"));
+
+        assert!(!started);
+        assert!(app.current_track.is_none());
+        assert!(app.playback_start.is_none());
+        assert!(
+            app.status_message
+                .as_deref()
+                .is_some_and(|message| message.contains("failed to open audio file"))
+        );
     }
 }

@@ -123,15 +123,9 @@ async fn main() -> Result<()> {
                         plyr.current_path.clone()
                     };
 
-                    if let Some(path) = current_path {
-                        {
-                            let mut plyr = app.player.lock().unwrap();
-                            if let Err(e) = plyr.play(&path) {
-                                log::error!("Playback failed: {e}");
-                                continue;
-                            }
-                        }
-
+                    if let Some(path) = current_path
+                        && app.play_path(&path)
+                    {
                         let track = {
                             let lib = app.library.lock().unwrap();
                             lib.track_by_path(&path).cloned()

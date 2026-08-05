@@ -152,28 +152,15 @@ impl Action {
                         app.queue_index = selected_index;
 
                         let player = Arc::clone(&app.player);
-                        let mut should_unpause = false;
+                        let should_unpause =
+                            player.lock().unwrap().paused_flag.load(Ordering::SeqCst);
 
-                        // Stop current playback and play selected track
-                        {
-                            let mut plyr = player.lock().unwrap();
-                            let was_paused = plyr.paused_flag.load(Ordering::SeqCst);
+                        if app.play_path(&track.path) {
+                            app.begin_playback(&track);
 
-                            plyr.stop();
-                            if let Err(e) = plyr.play(&track.path) {
-                                log::error!("Playback failed for {:?}: {e}", track.path);
-                                return;
+                            if should_unpause {
+                                app.toggle_pause();
                             }
-
-                            if was_paused {
-                                should_unpause = true;
-                            }
-                        }
-
-                        app.begin_playback(&track);
-
-                        if should_unpause {
-                            app.toggle_pause();
                         }
                     }
                 }

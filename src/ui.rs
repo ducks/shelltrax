@@ -5,8 +5,8 @@ use crate::{
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
-    style::Style,
-    widgets::{Block, Borders, Gauge, Paragraph},
+    style::{Color, Style},
+    widgets::{Block, Borders, Gauge, Paragraph, Wrap},
 };
 use std::time::{Duration, Instant};
 
@@ -37,6 +37,14 @@ pub fn render_footer(f: &mut Frame, app: &App, area: Rect) {
         let search_text = format!("/{}", app.search_query);
         let search_display = Paragraph::new(search_text);
         f.render_widget(search_display, inner);
+        return;
+    }
+
+    if let Some(message) = &app.status_message {
+        let status = Paragraph::new(message.as_str())
+            .style(Style::default().fg(Color::Red))
+            .wrap(Wrap { trim: true });
+        f.render_widget(status, inner);
         return;
     }
 
