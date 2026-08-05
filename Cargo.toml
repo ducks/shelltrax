@@ -1,6 +1,6 @@
 [package]
 name = "shelltrax"
-version = "20260805.0.0"
+version = "20260805.0.1"
 edition = "2024"
 authors = ["Jake Goldsborough <github@pancakes.email>"]
 description = "A cmus-inspired terminal music player with Last.fm scrobbling"
