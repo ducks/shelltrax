@@ -16,31 +16,88 @@ use app::App;
 use keybindings::{KeyBinding, KeyMap};
 
 use crossterm::{
+    cursor::Show,
     event::{self, Event},
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use ratatui::{backend::CrosstermBackend, prelude::*};
-use std::io::{Result, stdout};
+use std::io::{self, Result, stdout};
 
 use simplelog::*;
-use std::fs::File;
-use std::sync::atomic::Ordering;
+use std::fs::OpenOptions;
+use std::sync::atomic::{AtomicBool, Ordering};
 
-#[tokio::main]
-async fn main() -> Result<()> {
+static TERMINAL_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+struct TerminalSession {
+    active: bool,
+}
+
+impl TerminalSession {
+    fn enter() -> Result<Self> {
+        enable_raw_mode()?;
+        if let Err(error) = execute!(stdout(), EnterAlternateScreen) {
+            let _ = disable_raw_mode();
+            return Err(error);
+        }
+        TERMINAL_ACTIVE.store(true, Ordering::SeqCst);
+        Ok(Self { active: true })
+    }
+
+    fn restore(mut self) -> Result<()> {
+        self.active = false;
+        restore_terminal()
+    }
+}
+
+impl Drop for TerminalSession {
+    fn drop(&mut self) {
+        if self.active {
+            let _ = restore_terminal();
+        }
+    }
+}
+
+fn restore_terminal() -> Result<()> {
+    if !TERMINAL_ACTIVE.swap(false, Ordering::SeqCst) {
+        return Ok(());
+    }
+    let raw_mode_result = disable_raw_mode();
+    let screen_result = execute!(stdout(), LeaveAlternateScreen, Show);
+    raw_mode_result.and(screen_result)
+}
+
+fn install_panic_hook() {
+    let previous_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |panic_info| {
+        let _ = restore_terminal();
+        previous_hook(panic_info);
+    }));
+}
+
+fn init_logging() -> Result<()> {
+    let log_file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("debug.log")?;
     CombinedLogger::init(vec![WriteLogger::new(
         LevelFilter::Trace,
         Config::default(),
-        File::create("debug.log").unwrap(),
+        log_file,
     )])
-    .unwrap();
+    .map_err(|error| io::Error::other(error.to_string()))
+}
 
-    enable_raw_mode()?;
-    execute!(stdout(), EnterAlternateScreen)?;
+#[tokio::main]
+async fn main() -> Result<()> {
+    init_logging()?;
+    install_panic_hook();
+    let terminal_session = TerminalSession::enter()?;
 
     let backend = CrosstermBackend::new(stdout());
     let mut terminal = Terminal::new(backend)?;
+    terminal.clear()?;
 
     let mut app = App::new();
     let keymap = KeyMap::with_defaults();
@@ -156,7 +213,6 @@ async fn main() -> Result<()> {
         }
     }
 
-    disable_raw_mode()?;
-    execute!(stdout(), LeaveAlternateScreen)?;
-    Ok(())
+    drop(terminal);
+    terminal_session.restore()
 }
