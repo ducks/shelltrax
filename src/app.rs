@@ -245,16 +245,30 @@ impl App {
     }
 
     pub fn toggle_pause(&mut self) {
-        let mut player = self.player.lock().unwrap();
+        let was_paused = self.player.lock().unwrap().is_paused;
+        let transition = self.player.lock().unwrap().set_paused(!was_paused);
 
-        if player.is_paused {
-            player.set_paused(false);
-            if let Some(at) = self.paused_at.take() {
-                self.paused_duration += at.elapsed();
+        match transition {
+            Ok(restarted) => {
+                self.status_message = None;
+                if was_paused {
+                    if restarted {
+                        self.playback_start = Some(Instant::now());
+                        self.paused_duration = Duration::ZERO;
+                        self.scrobbled_current = false;
+                    } else if let Some(at) = self.paused_at.take() {
+                        self.paused_duration += at.elapsed();
+                    }
+                    self.paused_at = None;
+                } else {
+                    self.paused_at = Some(Instant::now());
+                }
             }
-        } else {
-            player.set_paused(true);
-            self.paused_at = Some(Instant::now());
+            Err(error) => {
+                let message = format!("Could not change playback state: {error:#}");
+                log::error!("{message}");
+                self.status_message = Some(message);
+            }
         }
     }
 

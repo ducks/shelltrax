@@ -25,6 +25,9 @@ use std::collections::VecDeque;
 
 use anyhow::{Context, Result, anyhow};
 
+const AUDIO_STREAM_ATTEMPTS: usize = 3;
+const AUDIO_STREAM_RETRY_DELAY: Duration = Duration::from_millis(150);
+
 pub struct Player {
     pub current_path: Option<PathBuf>,
     pub is_playing: bool,
@@ -86,12 +89,6 @@ impl Player {
         let sample_rate = track.codec_params.sample_rate.unwrap_or(44100);
         let channels = track.codec_params.channels.map(|c| c.count()).unwrap_or(2);
 
-        // Create CPAL output stream
-        let host = cpal::default_host();
-        let device = host
-            .default_output_device()
-            .ok_or_else(|| anyhow!("no audio output device available"))?;
-
         let config = cpal::StreamConfig {
             channels: channels as u16,
             sample_rate: cpal::SampleRate(sample_rate),
@@ -100,20 +97,33 @@ impl Player {
         let buffer = Arc::new(Mutex::new(Vec::<f32>::new()));
 
         let sample_buf = Arc::new(Mutex::new(VecDeque::<f32>::new()));
-        let sample_buf_clone = Arc::clone(&sample_buf);
-
-        let autoplay_trigger = Arc::clone(&self.autoplay_trigger);
-        let decoder_done = Arc::clone(&self.is_decoder_done);
         let decoder_done_for_thread = Arc::clone(&self.is_decoder_done);
-        let paused_flag = Arc::clone(&self.paused_flag);
+        let mut stream = None;
+        let mut last_stream_error = None;
 
-        let stream = device
-            .build_output_stream(
+        for attempt in 1..=AUDIO_STREAM_ATTEMPTS {
+            // Reacquire the default device on every attempt. Audio servers can
+            // replace the device while a stream is paused or an output is
+            // disconnected.
+            let host = cpal::default_host();
+            let Some(device) = host.default_output_device() else {
+                last_stream_error = Some(anyhow!("no audio output device available"));
+                if attempt < AUDIO_STREAM_ATTEMPTS {
+                    thread::sleep(AUDIO_STREAM_RETRY_DELAY);
+                }
+                continue;
+            };
+
+            let callback_buffer = Arc::clone(&sample_buf);
+            let callback_autoplay = Arc::clone(&self.autoplay_trigger);
+            let callback_decoder_done = Arc::clone(&self.is_decoder_done);
+            let callback_paused = Arc::clone(&self.paused_flag);
+            let candidate = device.build_output_stream(
                 &config,
                 move |data: &mut [f32], _| {
-                    let mut buf = sample_buf_clone.lock().unwrap();
+                    let mut buf = callback_buffer.lock().unwrap();
 
-                    if paused_flag.load(Ordering::SeqCst) {
+                    if callback_paused.load(Ordering::SeqCst) {
                         for sample in data.iter_mut() {
                             *sample = 0.0;
                         }
@@ -124,18 +134,42 @@ impl Player {
                         *sample = buf.pop_front().unwrap_or(0.0);
                     }
 
-                    if buf.is_empty() && decoder_done.load(Ordering::SeqCst) {
-                        autoplay_trigger.store(true, Ordering::SeqCst);
+                    if buf.is_empty() && callback_decoder_done.load(Ordering::SeqCst) {
+                        callback_autoplay.store(true, Ordering::SeqCst);
                     }
                 },
                 move |err| log::error!("CPAL stream error: {err}"),
                 None,
-            )
-            .context("failed to build audio output stream")?;
+            );
 
-        stream
-            .play()
-            .context("failed to start audio output stream")?;
+            match candidate {
+                Ok(candidate) => match candidate.play() {
+                    Ok(()) => {
+                        stream = Some(candidate);
+                        break;
+                    }
+                    Err(error) => {
+                        last_stream_error =
+                            Some(anyhow!("failed to start audio output stream: {error}"));
+                    }
+                },
+                Err(error) => {
+                    last_stream_error =
+                        Some(anyhow!("failed to build audio output stream: {error}"));
+                }
+            }
+
+            if attempt < AUDIO_STREAM_ATTEMPTS {
+                log::warn!(
+                    "Audio output attempt {attempt}/{AUDIO_STREAM_ATTEMPTS} failed; retrying"
+                );
+                thread::sleep(AUDIO_STREAM_RETRY_DELAY);
+            }
+        }
+
+        let stream = stream.ok_or_else(|| {
+            last_stream_error.unwrap_or_else(|| anyhow!("audio output stream unavailable"))
+        })?;
 
         self.is_playing = true;
         self.current_path = Some(path.to_path_buf());
@@ -272,27 +306,52 @@ impl Player {
         self.buffer.lock().unwrap().is_empty() && self.is_playing
     }
 
-    pub fn set_paused(&mut self, paused: bool) {
-        self.is_paused = paused;
-        self.paused_flag.store(paused, Ordering::SeqCst);
-
+    /// Change playback pause state. Returns true when a failed resume required
+    /// rebuilding the current track's output stream from the beginning.
+    pub fn set_paused(&mut self, paused: bool) -> Result<bool> {
         // Pause the OS-level CPAL stream too, not just the flag. Without this
         // the stream stays alive and keeps feeding silence to the device, so
         // the audio sink reports RUNNING / uncorked even while paused — which
         // blocks power management (e.g. screen-idle inhibitors that key off
         // cork state). Pausing the stream lets the device go idle. The
         // paused_flag still gates the callback/decoder for a clean resume.
-        if let Some(stream) = &self.stream {
-            // pause() and play() return distinct error types, so handle each
-            // branch separately rather than sharing one Result binding.
-            if paused {
-                if let Err(err) = stream.pause() {
-                    log::error!("Failed to pause CPAL stream: {err}");
-                }
-            } else if let Err(err) = stream.play() {
-                log::error!("Failed to resume CPAL stream: {err}");
+        if paused {
+            if let Some(stream) = &self.stream {
+                stream
+                    .pause()
+                    .context("failed to pause audio output stream")?;
+            }
+            self.is_paused = true;
+            self.paused_flag.store(true, Ordering::SeqCst);
+            return Ok(false);
+        }
+
+        let resume_failed = self.stream.as_ref().is_some_and(|stream| {
+            stream
+                .play()
+                .inspect_err(|error| log::warn!("Failed to resume CPAL stream: {error}"))
+                .is_err()
+        });
+        let needs_rebuild = resume_failed || (self.stream.is_none() && self.current_path.is_some());
+
+        if needs_rebuild {
+            let path = self
+                .current_path
+                .clone()
+                .ok_or_else(|| anyhow!("cannot rebuild audio output without a current track"))?;
+            if let Err(error) = self.play(&path) {
+                // Keep enough state to let a later resume retry after the
+                // system audio service or physical device returns.
+                self.current_path = Some(path);
+                self.is_paused = true;
+                self.paused_flag.store(true, Ordering::SeqCst);
+                return Err(error).context("failed to rebuild audio output after resume failure");
             }
         }
+
+        self.is_paused = false;
+        self.paused_flag.store(false, Ordering::SeqCst);
+        Ok(needs_rebuild)
     }
 }
 
@@ -368,11 +427,11 @@ mod tests {
         assert!(!player.is_paused);
         assert!(!player.paused_flag.load(Ordering::SeqCst));
 
-        player.set_paused(true);
+        assert!(!player.set_paused(true).unwrap());
         assert!(player.is_paused);
         assert!(player.paused_flag.load(Ordering::SeqCst));
 
-        player.set_paused(false);
+        assert!(!player.set_paused(false).unwrap());
         assert!(!player.is_paused);
         assert!(!player.paused_flag.load(Ordering::SeqCst));
     }
