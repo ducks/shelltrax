@@ -123,6 +123,20 @@ impl App {
     }
 
     pub fn update(&mut self) {
+        let stream_error = self.player_mut().take_stream_error();
+        if let Some(error) = stream_error {
+            let mut player = self.player_mut();
+            player.is_paused = true;
+            player
+                .paused_flag
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+            drop(player);
+            self.paused_at.get_or_insert_with(Instant::now);
+            self.status_message = Some(format!(
+                "Audio output was disconnected: {error}. Press pause to reconnect"
+            ));
+        }
+
         // Check if we should scrobble the current track
         self.check_and_scrobble();
 
