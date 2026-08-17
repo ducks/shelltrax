@@ -22,11 +22,37 @@ use crossterm::{
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use ratatui::{backend::CrosstermBackend, prelude::*};
-use std::io::{self, Result, stdout};
+use std::io::{self, Result, Write, stdout};
 
 use simplelog::*;
 use std::fs::OpenOptions;
 use std::sync::atomic::{AtomicBool, Ordering};
+
+const MAX_LOG_BYTES: u64 = 10 * 1024 * 1024;
+
+struct CappedLogWriter {
+    file: std::fs::File,
+    written: u64,
+    limit: u64,
+}
+
+impl Write for CappedLogWriter {
+    fn write(&mut self, buffer: &[u8]) -> Result<usize> {
+        let remaining = self.limit.saturating_sub(self.written) as usize;
+        if remaining > 0 {
+            let to_write = buffer.len().min(remaining);
+            self.file.write_all(&buffer[..to_write])?;
+            self.written += to_write as u64;
+        }
+        // Logging must never become an unbounded disk-pressure source. Report
+        // the whole write as consumed once this session reaches its cap.
+        Ok(buffer.len())
+    }
+
+    fn flush(&mut self) -> Result<()> {
+        self.file.flush()
+    }
+}
 
 static TERMINAL_ACTIVE: AtomicBool = AtomicBool::new(false);
 
@@ -79,12 +105,17 @@ fn install_panic_hook() {
 fn init_logging() -> Result<()> {
     let log_file = OpenOptions::new()
         .create(true)
-        .append(true)
+        .write(true)
+        .truncate(true)
         .open("debug.log")?;
     CombinedLogger::init(vec![WriteLogger::new(
-        LevelFilter::Trace,
+        LevelFilter::Debug,
         Config::default(),
-        log_file,
+        CappedLogWriter {
+            file: log_file,
+            written: 0,
+            limit: MAX_LOG_BYTES,
+        },
     )])
     .map_err(|error| io::Error::other(error.to_string()))
 }
@@ -207,6 +238,41 @@ async fn main() -> Result<()> {
         }
     }
 
+    // Tear audio down while the TUI is still visibly alive. In particular,
+    // never make a blocked backend shutdown look like a successful exit.
+    app.player.lock().unwrap().stop();
     drop(terminal);
     terminal_session.restore()
+}
+
+#[cfg(test)]
+mod logging_tests {
+    use super::*;
+
+    #[test]
+    fn capped_writer_never_exceeds_its_limit() {
+        let path = std::env::temp_dir().join(format!(
+            "shelltrax-capped-log-{}-{}",
+            std::process::id(),
+            std::thread::current().name().unwrap_or("test")
+        ));
+        let file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(&path)
+            .unwrap();
+        let mut writer = CappedLogWriter {
+            file,
+            written: 0,
+            limit: 8,
+        };
+
+        assert_eq!(writer.write(b"1234567890").unwrap(), 10);
+        assert_eq!(writer.write(b"more").unwrap(), 4);
+        writer.flush().unwrap();
+        assert_eq!(std::fs::metadata(&path).unwrap().len(), 8);
+
+        std::fs::remove_file(path).unwrap();
+    }
 }
