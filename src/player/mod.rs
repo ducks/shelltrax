@@ -336,7 +336,7 @@ impl Player {
         Ok(())
     }
 
-    pub fn stop(&mut self) {
+    fn stop_playback_resources(&mut self) {
         if let Some(stop) = self.decoder_stop.take() {
             stop.store(true, Ordering::SeqCst);
         }
@@ -346,8 +346,26 @@ impl Player {
         {
             log::error!("Decoder thread failed during shutdown: {error:?}");
         }
+    }
+
+    pub fn stop(&mut self) {
+        self.stop_playback_resources();
         self.is_playing = false;
         self.current_path = None;
+        self.buffer.lock().unwrap().clear();
+    }
+
+    /// Release a failed backend without forgetting which track can be retried.
+    ///
+    /// ALSA can repeatedly wake CPAL with `POLLERR` after a device disappears.
+    /// Merely muting the callback leaves that backend thread spinning, so drop
+    /// the stream as soon as the main loop observes the failure. A later resume
+    /// rebuilds playback from `current_path` using the new default device.
+    pub fn contain_stream_failure(&mut self) {
+        self.is_paused = true;
+        self.paused_flag.store(true, Ordering::SeqCst);
+        self.stop_playback_resources();
+        self.is_playing = false;
         self.buffer.lock().unwrap().clear();
     }
 
@@ -437,6 +455,33 @@ mod tests {
         assert!(record_stream_failure(&failed, &error, "first".into()));
         assert!(!record_stream_failure(&failed, &error, "second".into()));
         assert_eq!(error.lock().unwrap().as_deref(), Some("first"));
+    }
+
+    #[test]
+    fn containing_stream_failure_preserves_track_for_reconnect() {
+        let mut player = Player::new();
+        let path = PathBuf::from("/music/current.flac");
+        player.current_path = Some(path.clone());
+        player.is_playing = true;
+
+        let decoder_stop = Arc::new(AtomicBool::new(false));
+        let observed_stop = Arc::clone(&decoder_stop);
+        player.decoder_stop = Some(decoder_stop);
+        player.handle = Some(thread::spawn(move || {
+            while !observed_stop.load(Ordering::SeqCst) {
+                thread::yield_now();
+            }
+        }));
+
+        player.contain_stream_failure();
+
+        assert_eq!(player.current_path.as_deref(), Some(path.as_path()));
+        assert!(player.is_paused);
+        assert!(player.paused_flag.load(Ordering::SeqCst));
+        assert!(!player.is_playing);
+        assert!(player.decoder_stop.is_none());
+        assert!(player.handle.is_none());
+        assert!(player.stream.is_none());
     }
 
     #[test]
