@@ -27,6 +27,46 @@ use anyhow::{Context, Result, anyhow};
 
 const AUDIO_STREAM_ATTEMPTS: usize = 3;
 const AUDIO_STREAM_RETRY_DELAY: Duration = Duration::from_millis(150);
+const DECODER_BACKPRESSURE_DELAY: Duration = Duration::from_millis(25);
+const BUFFER_TARGET_SECONDS: usize = 2;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DecoderAction {
+    Decode,
+    Wait,
+    Stop,
+}
+
+fn decoder_action(buffered: usize, target: usize, paused: bool, stopped: bool) -> DecoderAction {
+    if stopped {
+        DecoderAction::Stop
+    } else if paused || buffered >= target {
+        DecoderAction::Wait
+    } else {
+        DecoderAction::Decode
+    }
+}
+
+fn wait_until_decode_ready(
+    buffer: &Mutex<VecDeque<f32>>,
+    target: usize,
+    paused: &AtomicBool,
+    stopped: &AtomicBool,
+) -> bool {
+    loop {
+        let action = decoder_action(
+            buffer.lock().unwrap().len(),
+            target,
+            paused.load(Ordering::Relaxed),
+            stopped.load(Ordering::Relaxed),
+        );
+        match action {
+            DecoderAction::Decode => return true,
+            DecoderAction::Stop => return false,
+            DecoderAction::Wait => thread::sleep(DECODER_BACKPRESSURE_DELAY),
+        }
+    }
+}
 
 fn record_stream_failure(
     failed: &AtomicBool,
@@ -218,11 +258,25 @@ impl Player {
         let paused_flag_decoder = Arc::clone(&self.paused_flag);
         let decoder_stop = Arc::new(AtomicBool::new(false));
         let decoder_stop_for_thread = Arc::clone(&decoder_stop);
+        let target_buffer_size = sample_rate as usize * channels * BUFFER_TARGET_SECONDS;
         let handle = thread::spawn(move || {
-            while let Ok(packet) = format.next_packet() {
-                if decoder_stop_for_thread.load(Ordering::SeqCst) {
+            loop {
+                // Decode only when the audio callback has made room. The old
+                // fixed 10 ms sleep still let decoding outrun playback and
+                // even appended another packet on every paused iteration.
+                if !wait_until_decode_ready(
+                    &decode_buffer,
+                    target_buffer_size,
+                    &paused_flag_decoder,
+                    &decoder_stop_for_thread,
+                ) {
                     break;
                 }
+
+                let packet = match format.next_packet() {
+                    Ok(packet) => packet,
+                    Err(_) => break,
+                };
                 let decoded = match decoder.decode(&packet) {
                     Ok(decoded) => decoded,
                     Err(err) => {
@@ -307,21 +361,6 @@ impl Player {
                 }
 
                 decode_buffer.lock().unwrap().extend(samples);
-
-                // Adaptive buffering: only sleep if we have enough samples buffered
-                // Target: keep 2-3 seconds of audio buffered to prevent underruns
-                let target_buffer_size = (sample_rate as usize) * (channels) * 2;
-                let current_size = decode_buffer.lock().unwrap().len();
-
-                // If paused, sleep and wait instead of filling the buffer
-                if paused_flag_decoder.load(Ordering::SeqCst) {
-                    std::thread::sleep(Duration::from_millis(50));
-                    continue;
-                }
-
-                if current_size > target_buffer_size {
-                    std::thread::sleep(Duration::from_millis(10));
-                }
             }
 
             // Decoding is finished!
@@ -455,6 +494,25 @@ mod tests {
         assert!(record_stream_failure(&failed, &error, "first".into()));
         assert!(!record_stream_failure(&failed, &error, "second".into()));
         assert_eq!(error.lock().unwrap().as_deref(), Some("first"));
+    }
+
+    #[test]
+    fn decoder_waits_when_paused_or_buffer_is_full() {
+        assert_eq!(decoder_action(0, 100, true, false), DecoderAction::Wait);
+        assert_eq!(decoder_action(100, 100, false, false), DecoderAction::Wait);
+        assert_eq!(decoder_action(101, 100, false, false), DecoderAction::Wait);
+    }
+
+    #[test]
+    fn decoder_runs_only_below_the_buffer_target() {
+        assert_eq!(decoder_action(99, 100, false, false), DecoderAction::Decode);
+        assert_eq!(decoder_action(0, 100, false, false), DecoderAction::Decode);
+    }
+
+    #[test]
+    fn decoder_stop_wins_over_other_states() {
+        assert_eq!(decoder_action(0, 100, false, true), DecoderAction::Stop);
+        assert_eq!(decoder_action(100, 100, true, true), DecoderAction::Stop);
     }
 
     #[test]

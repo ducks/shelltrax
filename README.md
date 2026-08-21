@@ -79,6 +79,12 @@ The theme supports:
 - Hex colors (e.g., `#b16286`)
 - See `theme.toml.example` for all available options and examples
 
+### Logging
+
+Shelltrax writes warnings and errors to `debug.log` in the working directory.
+Verbose per-packet diagnostics are disabled by default; enable them for a
+debugging session with `SHELLTRAX_LOG=debug shelltrax`.
+
 ## Keybindings
 
 Shelltrax supports both arrow keys and vim-style navigation.
@@ -148,4 +154,3 @@ Shelltrax supports both arrow keys and vim-style navigation.
 - [ ] Match more `cmus` keybindings and behaviors (e.g. `v`, `:`)
 - [ ] Gapless playback
 - [ ] Audio visualizer
-
