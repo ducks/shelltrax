@@ -25,6 +25,7 @@ use ratatui::{backend::CrosstermBackend, prelude::*};
 use std::io::{self, Result, Write, stdout};
 
 use simplelog::*;
+use std::env;
 use std::fs::OpenOptions;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -109,7 +110,7 @@ fn init_logging() -> Result<()> {
         .truncate(true)
         .open("debug.log")?;
     CombinedLogger::init(vec![WriteLogger::new(
-        LevelFilter::Debug,
+        configured_log_level(),
         Config::default(),
         CappedLogWriter {
             file: log_file,
@@ -118,6 +119,21 @@ fn init_logging() -> Result<()> {
         },
     )])
     .map_err(|error| io::Error::other(error.to_string()))
+}
+
+fn configured_log_level() -> LevelFilter {
+    configured_log_level_from(env::var("SHELLTRAX_LOG").ok().as_deref())
+}
+
+fn configured_log_level_from(value: Option<&str>) -> LevelFilter {
+    match value.unwrap_or_default().to_ascii_lowercase().as_str() {
+        "off" => LevelFilter::Off,
+        "error" => LevelFilter::Error,
+        "warn" => LevelFilter::Warn,
+        "debug" => LevelFilter::Debug,
+        "trace" => LevelFilter::Trace,
+        _ => LevelFilter::Info,
+    }
 }
 
 #[tokio::main]
@@ -274,5 +290,19 @@ mod logging_tests {
         assert_eq!(std::fs::metadata(&path).unwrap().len(), 8);
 
         std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn logging_defaults_to_info() {
+        assert_eq!(configured_log_level_from(None), LevelFilter::Info);
+        assert_eq!(
+            configured_log_level_from(Some("unknown")),
+            LevelFilter::Info
+        );
+    }
+
+    #[test]
+    fn debug_logging_is_explicitly_available() {
+        assert_eq!(configured_log_level_from(Some("debug")), LevelFilter::Debug);
     }
 }
