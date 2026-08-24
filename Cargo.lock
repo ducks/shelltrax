@@ -2010,7 +2010,7 @@ dependencies = [
 
 [[package]]
 name = "shelltrax"
-version = "20260821.0.0"
+version = "20260824.0.0"
 dependencies = [
  "anyhow",
  "cpal",
